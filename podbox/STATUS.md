@@ -84,6 +84,12 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     ABI-Wechsel weiter auf `lib/arm`. `RockboxService` setzt jetzt `ROCKBOX_BINDIR` auf
     `nativeLibraryDir`, `handle_special_dirs()` (`filesystem-app.c`) nutzt das.
 
+15. **Gerät wird bei der Wiedergabe warm:** Android 12 legte den Rockbox-Track auf den
+    Low-Latency-Ausgang (`PRIMARY|FAST`, 256-Frame-HAL-Perioden, FastMixer, ca. ½ Kern
+    Systemlast). `RockboxPCM` umhüllt den `AudioTrack` jetzt und baut ihn per Builder mit
+    `PERFORMANCE_MODE_POWER_SAVING`, damit läuft er über `deep_buffer` (2048 Frames).
+    Rockbox selbst braucht nur 2–7 % eines Kerns. Es bleiben ca. 20 % eines Kerns im
+    Android-Mixer für das Umrechnen von 44,1 auf 48 kHz (Lautsprecher läuft fest mit 48 kHz).
 ## Modernisierung
 
 | Etappe | Stand |
@@ -113,6 +119,16 @@ Start, Menü, Ja/Nein-Dialog, Browser, FLAC-Wiedergabe mit Album-Art. Der alte W
   Dateien", einmal in den Einstellungen erlauben). Das ist der heikelste Punkt, unbedingt
   zuerst testen. Bisher läuft die App mit `targetSdk=5` im Legacy-Modus.
 - Nebenbei: `android:debuggable="true"` aus dem Manifest, `versionCode`/`versionName` pflegen
+
+## Audio-Hardware (Stand 17.11.)
+
+- DAC ES9018. Mixport `wired_headphone_direct` (DIRECT, PCM 16/32 Bit, 8–384 kHz) nur für
+  Kopfhörer; Hersteller-Property `sys.audio.wired_direct_focus_uid` zeigt auf die App mit Fokus.
+  Lautsprecher: `primary`/`deep_buffer`, 44,1/48 kHz, Mixer läuft mit 48 kHz.
+- Rockbox: Decoder/DSP/Mixer 16 Bit, Raten bis 192 kHz möglich (`SAMPR_CAP_ALL_192`,
+  „Wiedergabefrequenz: Auto“), Android-Port derzeit fest 44,1 kHz. Natives DSD/384 kHz/24 Bit
+  nur mit tiefem Umbau. Idee „Originalrate bis 192 kHz über den Direktpfad“ ist notiert, der
+  User will das vorerst nicht verfolgen.
 
 ## Offene Fragen an den User (Stand 17.11.)
 

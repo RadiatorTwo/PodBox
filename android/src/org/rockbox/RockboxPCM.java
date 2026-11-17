@@ -26,14 +26,16 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Build;
 import android.os.Process;
 
-public class RockboxPCM extends AudioTrack 
+public class RockboxPCM 
 {
     private static final int streamtype = AudioManager.STREAM_MUSIC;
     private static final int samplerate = 44100;
@@ -56,13 +58,44 @@ public class RockboxPCM extends AudioTrack
     /* 8k is plenty, but some devices may have a higher minimum.
      * 8k represents 125ms of audio */
     private static final int chunkSize =
-        Math.max(8<<10, getMinBufferSize(samplerate, channels, encoding));
+        Math.max(8<<10, AudioTrack.getMinBufferSize(samplerate, channels, encoding));
     Streamer streamer;
+
+    /* PodBox: RockboxPCM used to extend AudioTrack. It now wraps one, so the
+     * track can be built with PERFORMANCE_MODE_POWER_SAVING (API 26+). That
+     * puts it on the deep-buffer output; otherwise Android 12 uses the
+     * low-latency primary output (256-frame HAL periods, FastMixer), which
+     * costs about half a CPU core and heats the device. */
+    private final AudioTrack track;
+
+    private static AudioTrack createTrack()
+    {
+        AudioAttributes attr = new AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build();
+        AudioFormat fmt = new AudioFormat.Builder()
+            .setSampleRate(samplerate)
+            .setChannelMask(channels)
+            .setEncoding(encoding)
+            .build();
+        if (Build.VERSION.SDK_INT >= 26)
+        {
+            return new AudioTrack.Builder()
+                .setAudioAttributes(attr)
+                .setAudioFormat(fmt)
+                .setBufferSizeInBytes(chunkSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_POWER_SAVING)
+                .build();
+        }
+        return new AudioTrack(attr, fmt, chunkSize, AudioTrack.MODE_STREAM,
+                              AudioManager.AUDIO_SESSION_ID_GENERATE);
+    }
 
     public RockboxPCM()
     {
-        super(streamtype, samplerate,  channels, encoding,
-                chunkSize, AudioTrack.MODE_STREAM);
+        track = createTrack();
 
         streamer = new Streamer(chunkSize);
         streamer.start();
@@ -75,8 +108,8 @@ public class RockboxPCM extends AudioTrack
             (AudioManager) rbservice.getSystemService(Context.AUDIO_SERVICE);
         maxstreamvolume = audiomanager.getStreamMaxVolume(streamtype);
 
-        minpcmvolume = getMinVolume();
-        pcmrange = getMaxVolume() - minpcmvolume;
+        minpcmvolume = AudioTrack.getMinVolume();
+        pcmrange = AudioTrack.getMaxVolume() - minpcmvolume;
 
         setupVolumeHandler();
         postVolume(audiomanager.getStreamVolume(streamtype));
@@ -107,13 +140,13 @@ public class RockboxPCM extends AudioTrack
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
             while (!quit)
             {
-                switch(getPlayState())
+                switch(track.getPlayState())
                 {
-                    case PLAYSTATE_PLAYING:
+                    case AudioTrack.PLAYSTATE_PLAYING:
                         nativeWrite(buffer, buffer.length);
                         break;
-                    case PLAYSTATE_PAUSED:
-                    case PLAYSTATE_STOPPED:
+                    case AudioTrack.PLAYSTATE_PAUSED:
+                    case AudioTrack.PLAYSTATE_STOPPED:
                     {
                         synchronized (this)
                         {
@@ -221,7 +254,7 @@ public class RockboxPCM extends AudioTrack
             widgetUpdate.putExtra("state", "pause");
             service.sendBroadcast(widgetUpdate);
             service.stopForeground();
-            pause();
+            track.pause();
         }
         else
         {
@@ -229,25 +262,29 @@ public class RockboxPCM extends AudioTrack
             widgetUpdate.putExtra("state", "play");
             service.sendBroadcast(widgetUpdate);
             service.startForeground();
-            if (getPlayState() == AudioTrack.PLAYSTATE_STOPPED)
+            if (track.getPlayState() == AudioTrack.PLAYSTATE_STOPPED)
             {
                 /* need to fill with silence before starting playback */ 
-                write(raw_data, 0, raw_data.length);
+                track.write(raw_data, 0, raw_data.length);
             }
             play();
         }
     }
 
-    @Override
+    /* called from native code (pcm-android.c) */
+    public int write(byte[] audioData, int offsetInBytes, int sizeInBytes)
+    {
+        return track.write(audioData, offsetInBytes, sizeInBytes);
+    }
+
     public void play() throws IllegalStateException
     {
-        super.play();
+        track.play();
         /* when stopped or paused the streamer is in a wait() state. need
          * it to wake it up */
         streamer.kick();
     }
 
-    @Override
     public synchronized void stop() throws IllegalStateException 
     {
         /* flush pending data, but turn the volume off so it cannot be heard.
@@ -257,8 +294,8 @@ public class RockboxPCM extends AudioTrack
         float old_vol = curpcmvolume; 
         try {
             setStereoVolume(0, 0);
-            flush();
-            super.stop();
+            track.flush();
+            track.stop();
         } catch (IllegalStateException e) {
             throw new IllegalStateException(e);
         } finally {
@@ -271,10 +308,9 @@ public class RockboxPCM extends AudioTrack
         RockboxService.getInstance().stopForeground();
     }
 
-    @Override
     public void release()
     {
-        super.release();
+        track.release();
         /* stop streamer if this AudioTrack is destroyed by whomever */
         streamer.quitAndJoin();
     }
@@ -282,7 +318,7 @@ public class RockboxPCM extends AudioTrack
     public int setStereoVolume(float leftVolume, float rightVolume)
     {
         curpcmvolume = leftVolume;
-        return super.setStereoVolume(leftVolume, rightVolume);
+        return track.setStereoVolume(leftVolume, rightVolume);
     }
 
     private void set_volume(int volume)
