@@ -35,6 +35,7 @@ extern jobject RockboxService_instance;
 
 static int last_y, last_x;
 static int last_btns;
+static volatile int latched_btns;
 
 static enum {
     STATE_UNKNOWN,
@@ -71,7 +72,20 @@ Java_org_rockbox_RockboxFramebuffer_buttonHandler(JNIEnv*env, jclass class,
     (void)env;
     (void)class;
 
-    unsigned button = 0;
+    unsigned button = wheel_to_button((int)keycode);
+
+    if (button)
+    {
+        /* consume both press and release so Android doesn't change the
+         * volume, post one event per wheel detent */
+        if (!state)
+        {
+            wait_rockbox_ready();
+            reset_poweroff_timer();
+            button_queue_post(button, 0);
+        }
+        return true;
+    }
 
     if (!state)
     {
@@ -102,11 +116,13 @@ Java_org_rockbox_RockboxFramebuffer_buttonHandler(JNIEnv*env, jclass class,
     if (state)
     {
         last_btns |= button;
+        /* PodBox: latch the press until button_read_device() saw it once,
+         * otherwise presses shorter than one tick get lost */
+        latched_btns |= button;
     }
     else
     {
         last_btns &= (~button);
-        return false;
     }
 
     return true;
@@ -135,7 +151,8 @@ void touchscreen_enable_device(bool en)
 
 int button_read_device(int *data)
 {
-    int btn = last_btns;
+    int btn = last_btns | latched_btns;
+    latched_btns = 0;
     /* Get grid button/coordinates based on the current touchscreen mode
      *
      * Caveat: the caller seemingly depends on *data always being filled with

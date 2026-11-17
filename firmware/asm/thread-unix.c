@@ -269,12 +269,57 @@ static inline void get_context(struct ctx *c)
 
 static void setup_thread(struct regs *context);
 
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+/*
+ * Android/ART checks the native stack pointer against the bounds of the
+ * calling Java thread on every JNI call into Java and throws a
+ * StackOverflowError if it lies outside. Rockbox thread stacks normally
+ * live in .bss, so any JNI call from a non-main Rockbox thread aborts.
+ *
+ * Workaround: carve each thread's stack out of the (large) stack of the
+ * Java "Rockbox thread" that runs main(). One fixed-size slot per thread
+ * buffer index, located below a reserve for the main thread itself.
+ */
+#define ANDROID_MAIN_RESERVE  (1024*1024)
+#define ANDROID_SLOT_SIZE     (512*1024)
+static char *android_slot_top;
+
+static void android_init_stack_pool(void)
+{
+    char *frame = (char *)__builtin_frame_address(0);
+    android_slot_top = (char *)((uintptr_t)(frame - ANDROID_MAIN_RESERVE) & ~(uintptr_t)15);
+
+    pthread_attr_t attr;
+    void *base;
+    size_t size;
+    if (pthread_getattr_np(pthread_self(), &attr) == 0)
+    {
+        pthread_attr_getstack(&attr, &base, &size);
+        pthread_attr_destroy(&attr);
+        char *lowest = android_slot_top - (size_t)MAXTHREADS * ANDROID_SLOT_SIZE;
+        /* ART reserves some guard space at the low end, keep 64KB extra */
+        if (lowest < (char *)base + 64*1024)
+            DEBUGF("%s(): Java thread stack too small (%zu bytes)!\n",
+                   __func__, size);
+    }
+}
+
+static char *android_slot_stack(struct ctx *c)
+{
+    unsigned int idx = c - thread_bufs;
+    return android_slot_top - (size_t)(idx + 1) * ANDROID_SLOT_SIZE;
+}
+#endif
+
 #define INIT_MAIN_THREAD
 static void init_main_thread(void *addr)
 {
     /* get a context for the main thread so that we can jump to it from
      * other threads */
     struct regs *context = (struct regs*)addr;
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+    android_init_stack_pool();
+#endif
     init_thread_bufs();
     context->uc = alloc_thread_buf();
     get_context(context->uc);
@@ -294,6 +339,16 @@ static void setup_thread(struct regs *context)
 {
     void (*fn)(void) = context->start;
     context->uc = alloc_thread_buf();
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+    if (context->stack_size <= ANDROID_SLOT_SIZE)
+    {
+        context->stack = (uintptr_t)android_slot_stack(context->uc);
+        context->stack_size = ANDROID_SLOT_SIZE;
+    }
+    else
+        DEBUGF("%s(): stack %zu > slot size, JNI calls will fail\n",
+               __func__, (size_t)context->stack_size);
+#endif
     while (!make_context(context->uc, fn, (char*)context->stack, context->stack_size))
         DEBUGF("Thread creation failed. Retrying");
 }

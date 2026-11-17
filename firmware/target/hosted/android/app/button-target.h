@@ -25,6 +25,7 @@
 
 unsigned multimedia_to_button(int keyboard_key);
 unsigned dpad_to_button(int keyboard_key);
+unsigned wheel_to_button(int keyboard_key);
 void android_ignore_back_button(bool yes);
 
 /* Main unit's buttons */

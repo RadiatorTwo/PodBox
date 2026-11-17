@@ -37,29 +37,49 @@
  */
 
 static const struct button_mapping button_context_standard[]  = {
+    /* PodBox hardware: wheel = DPAD_UP/DOWN (single REL events),
+     * wheel button = DPAD_CENTER, top key = BACK, bottom key = MENU */
     { ACTION_STD_PREV,        BUTTON_DPAD_UP|BUTTON_REL,        BUTTON_NONE },
     { ACTION_STD_NEXT,        BUTTON_DPAD_DOWN|BUTTON_REL,      BUTTON_NONE },
 
-    { ACTION_STD_OK,          BUTTON_DPAD_CENTER,               BUTTON_NONE },
+    { ACTION_STD_OK,          BUTTON_DPAD_CENTER|BUTTON_REL,    BUTTON_DPAD_CENTER },
+    { ACTION_STD_CONTEXT,     BUTTON_DPAD_CENTER|BUTTON_REPEAT, BUTTON_DPAD_CENTER },
     { ACTION_STD_OK,          BUTTON_DPAD_RIGHT|BUTTON_REL,     BUTTON_NONE },
-    { ACTION_STD_CANCEL,      BUTTON_BACK,                      BUTTON_NONE },
-    { ACTION_STD_CANCEL,      BUTTON_BACK|BUTTON_REPEAT,        BUTTON_BACK },
     { ACTION_STD_CANCEL,      BUTTON_DPAD_LEFT|BUTTON_REL,      BUTTON_NONE },
 
-    { ACTION_STD_MENU,        BUTTON_MENU|BUTTON_REL,           BUTTON_MENU },
-    { ACTION_STD_CONTEXT,     BUTTON_MENU|BUTTON_REPEAT,        BUTTON_MENU },
+    /* top: short = back, long = main menu */
+    { ACTION_STD_CANCEL,      BUTTON_BACK|BUTTON_REL,           BUTTON_BACK },
+    { ACTION_STD_MENU,        BUTTON_BACK|BUTTON_REPEAT,        BUTTON_BACK },
+
+    /* bottom: short = context menu, long = quickscreen */
+    { ACTION_STD_CONTEXT,     BUTTON_MENU|BUTTON_REL,           BUTTON_MENU },
+    { ACTION_STD_QUICKSCREEN, BUTTON_MENU|BUTTON_REPEAT,        BUTTON_MENU },
+
 
     LAST_ITEM_IN_LIST
 }; /* button_context_standard */
 
 static const struct button_mapping button_context_wps[]  = {
-    { ACTION_WPS_BROWSE,        BUTTON_BACK,                 BUTTON_NONE },
-    { ACTION_WPS_MENU,          BUTTON_MENU|BUTTON_REL,      BUTTON_MENU },
-    { ACTION_WPS_CONTEXT,       BUTTON_MENU|BUTTON_REPEAT,   BUTTON_MENU },
+    /* wheel = volume */
+    { ACTION_WPS_VOLUP,         BUTTON_DPAD_DOWN|BUTTON_REL,    BUTTON_NONE },
+    { ACTION_WPS_VOLDOWN,       BUTTON_DPAD_UP|BUTTON_REL,      BUTTON_NONE },
     { ACTION_WPS_VOLUP,         BUTTON_VOL_UP,                  BUTTON_NONE },
     { ACTION_WPS_VOLUP,         BUTTON_VOL_UP|BUTTON_REPEAT,    BUTTON_NONE },
     { ACTION_WPS_VOLDOWN,       BUTTON_VOL_DOWN,                BUTTON_NONE },
     { ACTION_WPS_VOLDOWN,       BUTTON_VOL_DOWN|BUTTON_REPEAT,  BUTTON_NONE },
+
+    /* wheel button: short = main menu, long = context */
+    { ACTION_WPS_MENU,          BUTTON_DPAD_CENTER|BUTTON_REL,    BUTTON_DPAD_CENTER },
+    { ACTION_WPS_CONTEXT,       BUTTON_DPAD_CENTER|BUTTON_REPEAT, BUTTON_DPAD_CENTER },
+
+    /* top: short = browser, long = previous track */
+    { ACTION_WPS_BROWSE,        BUTTON_BACK|BUTTON_REL,      BUTTON_BACK },
+    { ACTION_WPS_SKIPPREV,      BUTTON_BACK|BUTTON_REPEAT,   BUTTON_BACK },
+
+    /* bottom: short = context menu, long = next track */
+    { ACTION_WPS_CONTEXT,       BUTTON_MENU|BUTTON_REL,      BUTTON_MENU },
+    { ACTION_WPS_SKIPNEXT,      BUTTON_MENU|BUTTON_REPEAT,   BUTTON_MENU },
+
     
     LAST_ITEM_IN_LIST
 }; /* button_context_wps */
@@ -87,10 +107,14 @@ static const struct button_mapping button_context_listtree_scroll_without_combo[
 };
 
 static const struct button_mapping button_context_settings[]  = {
+    /* wheel changes the value */
+    { ACTION_SETTINGS_INC,          BUTTON_DPAD_DOWN|BUTTON_REL,    BUTTON_NONE },
+    { ACTION_SETTINGS_DEC,          BUTTON_DPAD_UP|BUTTON_REL,      BUTTON_NONE },
     { ACTION_SETTINGS_INC,          BUTTON_DPAD_RIGHT|BUTTON_REL,   BUTTON_NONE },
     { ACTION_SETTINGS_DEC,          BUTTON_DPAD_LEFT|BUTTON_REL,    BUTTON_NONE },
-    { ACTION_STD_OK,                BUTTON_DPAD_CENTER,             BUTTON_NONE },
-    { ACTION_STD_CANCEL,            BUTTON_BACK,                    BUTTON_NONE },
+    { ACTION_STD_OK,                BUTTON_DPAD_CENTER|BUTTON_REL,  BUTTON_DPAD_CENTER },
+    { ACTION_STD_CANCEL,            BUTTON_BACK|BUTTON_REL,         BUTTON_BACK },
+
 
     LAST_ITEM_IN_LIST__NEXTLIST(CONTEXT_STD)
 }; /* button_context_settings */
@@ -101,7 +125,8 @@ static const struct button_mapping button_context_settings_right_is_inc[]  = {
 }; /* button_context_settingsgraphical */
 
 static const struct button_mapping button_context_yesno[]  = {
-    { ACTION_YESNO_ACCEPT,  BUTTON_DPAD_CENTER,  BUTTON_NONE },
+    { ACTION_YESNO_ACCEPT,  BUTTON_DPAD_CENTER|BUTTON_REL,  BUTTON_DPAD_CENTER },
+
 
     LAST_ITEM_IN_LIST__NEXTLIST(CONTEXT_STD)
 }; /* button_context_settings_yesno */
@@ -124,16 +149,25 @@ static const struct button_mapping button_context_time[]  = {
 }; /* button_context_time */
 
 static const struct button_mapping button_context_quickscreen[]  = {
-    { ACTION_STD_CANCEL, BUTTON_BACK|BUTTON_REL,        BUTTON_NONE },
+    { ACTION_QS_LEFT,    BUTTON_DPAD_UP|BUTTON_REL,     BUTTON_NONE },
+    { ACTION_QS_RIGHT,   BUTTON_DPAD_DOWN|BUTTON_REL,   BUTTON_NONE },
+    { ACTION_QS_TOP,     BUTTON_BACK|BUTTON_REL,        BUTTON_BACK },
+    { ACTION_QS_DOWN,    BUTTON_MENU|BUTTON_REL,        BUTTON_MENU },
+    { ACTION_STD_CANCEL, BUTTON_DPAD_CENTER|BUTTON_REL, BUTTON_DPAD_CENTER },
+
 
     LAST_ITEM_IN_LIST__NEXTLIST(CONTEXT_STD)
 }; /* button_context_quickscreen */
 
 static const struct button_mapping button_context_pitchscreen[]  = {
-
+    { ACTION_PS_INC_SMALL, BUTTON_DPAD_DOWN|BUTTON_REL,   BUTTON_NONE },
+    { ACTION_PS_DEC_SMALL, BUTTON_DPAD_UP|BUTTON_REL,     BUTTON_NONE },
     { ACTION_PS_INC_SMALL, BUTTON_DPAD_RIGHT|BUTTON_REL,  BUTTON_NONE },
     { ACTION_PS_DEC_SMALL, BUTTON_DPAD_LEFT|BUTTON_REL,   BUTTON_NONE },
-    { ACTION_PS_EXIT,      BUTTON_BACK,                   BUTTON_NONE },
+    { ACTION_PS_TOGGLE_MODE, BUTTON_MENU|BUTTON_REL,      BUTTON_MENU },
+    { ACTION_PS_RESET,     BUTTON_DPAD_CENTER|BUTTON_REL, BUTTON_DPAD_CENTER },
+    { ACTION_PS_EXIT,      BUTTON_BACK|BUTTON_REL,        BUTTON_BACK },
+
 
     LAST_ITEM_IN_LIST__NEXTLIST(CONTEXT_STD)
 }; /* button_context_pitchcreen */

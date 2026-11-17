@@ -38,10 +38,34 @@ int key_to_button(int keyboard_key)
             return BUTTON_MENU;
         case KEYCODE_DPAD_CENTER:
             return BUTTON_DPAD_CENTER;
+        /* PodBox / Surfans F20 Pro+ hardware (vendor Generic.kl):
+         *   wheel button       -> KEYCODE_CAMERA         = select
+         *   right side, top    -> KEYCODE_MEDIA_PREVIOUS = back
+         *   right side, bottom -> KEYCODE_MEDIA_NEXT     = menu/context
+         * (middle key PLAY_PAUSE is handled as multimedia key, the
+         *  short/long press distinction is done in RockboxFramebuffer.java) */
+        case KEYCODE_CAMERA:
+            return BUTTON_DPAD_CENTER;
+        case KEYCODE_MEDIA_PREVIOUS:
+            return BUTTON_BACK;
+        case KEYCODE_MEDIA_NEXT:
+            return BUTTON_MENU;
+        default:
+            return BUTTON_NONE;
+    }
+}
+
+/* PodBox: the scroll wheel reports one VOLUME_UP (clockwise) or
+ * VOLUME_DOWN (counter-clockwise) key press per detent. Each detent is
+ * posted as a single event, like the dpad keys below. */
+unsigned wheel_to_button(int keyboard_key)
+{
+    switch (keyboard_key)
+    {
         case KEYCODE_VOLUME_UP:
-            return BUTTON_VOL_UP;
+            return BUTTON_DPAD_DOWN|BUTTON_REL;
         case KEYCODE_VOLUME_DOWN:
-            return BUTTON_VOL_DOWN;
+            return BUTTON_DPAD_UP|BUTTON_REL;
         default:
             return BUTTON_NONE;
     }
@@ -55,10 +79,8 @@ unsigned multimedia_to_button(int keyboard_key)
             return BUTTON_MULTIMEDIA_PLAYPAUSE;
         case KEYCODE_MEDIA_STOP:
             return BUTTON_MULTIMEDIA_STOP;
-        case KEYCODE_MEDIA_NEXT:
-            return BUTTON_MULTIMEDIA_NEXT;
-        case KEYCODE_MEDIA_PREVIOUS:
-            return BUTTON_MULTIMEDIA_PREV;
+        /* MEDIA_NEXT / MEDIA_PREVIOUS are hardware keys on PodBox,
+         * see key_to_button() */
         case KEYCODE_MEDIA_REWIND:
             return BUTTON_MULTIMEDIA_REW;
         case KEYCODE_MEDIA_FAST_FORWARD:

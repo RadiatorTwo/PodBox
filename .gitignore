@@ -339,3 +339,6 @@ __pycache__
 # /utils/jztool/
 /utils/jztool/build*
 /utils/jztool/jztool.*
+
+# PodBox
+/podbox.apk

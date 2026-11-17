@@ -108,13 +108,26 @@ public class RockboxFramebuffer extends SurfaceView
         return false;
     }
 
+    /* PodBox: middle hardware key, short press = play/pause,
+     * long press = stop (decided on release) */
+    private static final long LONG_PRESS_MS = 600;
+
     public boolean onKeyDown(int keyCode, KeyEvent event)
     {
+        if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+            return true; /* handled on release */
         return buttonHandler(keyCode, true);
     }
 
     public boolean onKeyUp(int keyCode, KeyEvent event)
     {
+        if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+        {
+            long held = event.getEventTime() - event.getDownTime();
+            buttonHandler(held >= LONG_PRESS_MS ? KeyEvent.KEYCODE_MEDIA_STOP
+                                                : keyCode, false);
+            return true;
+        }
         return buttonHandler(keyCode, false);
     }
  

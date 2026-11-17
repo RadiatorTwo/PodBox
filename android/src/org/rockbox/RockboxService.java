@@ -152,7 +152,7 @@ public class RockboxService extends Service
     private void startService()
     {
         final Object lock = new Object();
-        Thread rb = new Thread(new Runnable()
+        Thread rb = new Thread(null, new Runnable()
         {
             public void run()
             {
@@ -283,7 +283,7 @@ public class RockboxService extends Service
                 Logger.d("Stop service: main() returned");
                 stopSelf(); /* service is of no use anymore */
             }
-        }, "Rockbox thread");
+        }, "Rockbox thread", 64L * 1024 * 1024); /* big stack: Rockbox thread stacks are carved from it (thread-unix.c) */
         rb.setDaemon(false);
         /* wait at least until the library is loaded */
         synchronized (lock)
