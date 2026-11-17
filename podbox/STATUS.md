@@ -1,7 +1,8 @@
 # PodBox – Projektstand
 
-Stand: 17.11.2026, `main` (github.com/RadiatorTwo/PodBox), Etappe 3 (Gradle) fertig.
-Auf dem Gerät installiert: 64-Bit-Build (arm64-v8a, NDK r27), APK per Gradle gebaut.
+Stand: 17.11.2026 abends, `main` (github.com/RadiatorTwo/PodBox), Etappe 3 (Gradle) fertig,
+Wärme-Fix (deep_buffer) committet. Auf dem Gerät installiert: 64-Bit-Build (arm64-v8a, NDK r27,
+APK per Gradle) mit dem deep_buffer-Fix. Die Wiedergabe ist pausiert, das Gerät kühlt ab.
 
 ## Ziel
 
@@ -96,7 +97,7 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
 |---|---|
 | 1. NDK r27 (clang) statt r16b (GCC 4.9) | fertig, Commit `9f34d8cf78` |
 | 2. arm64-v8a als Standard | fertig, Commit `d182553d70` |
-| 3. Gradle statt `android.make` für Java/APK | fertig |
+| 3. Gradle statt `android.make` für Java/APK | fertig, Commit `5d86cc83d2` |
 | 4. `targetSdk` ≥ 31 (34 angepeilt) | offen |
 
 **Etappe 3, umgesetzt:** Der native Teil bleibt bei `configure` + `make`. `build.sh` ruft
@@ -117,21 +118,44 @@ Start, Menü, Ja/Nein-Dialog, Browser, FLAC-Wiedergabe mit Album-Art. Der alte W
 - Speicherzugriff: Ab `targetSdk` 30 gibt es kein `requestLegacyExternalStorage` mehr. Rockbox
   liest Dateien per C-`open()`, dafür braucht es `MANAGE_EXTERNAL_STORAGE` ("Zugriff auf alle
   Dateien", einmal in den Einstellungen erlauben). Das ist der heikelste Punkt, unbedingt
-  zuerst testen. Bisher läuft die App mit `targetSdk=5` im Legacy-Modus.
+  zuerst testen. Bisher läuft die App mit `targetSdk=21` im Legacy-Modus.
 - Nebenbei: `android:debuggable="true"` aus dem Manifest, `versionCode`/`versionName` pflegen
 
-## Audio-Hardware (Stand 17.11.)
+## Wärme und Audio-Hardware (Stand 17.11.)
 
-- DAC ES9018. Mixport `wired_headphone_direct` (DIRECT, PCM 16/32 Bit, 8–384 kHz) nur für
+Messungen (Prozessor-Temperatur `thermal_zone1` = mtktsAP, Akku `thermal_zone0`, je 3 min,
+Bildschirm an, Lautsprecher):
+- Ohne Rockbox: 48 → 43 °C. Rockbox im Leerlauf: 43 → 40 °C (kühlt weiter ab).
+- Wiedergabe vor dem Fix: 40 → 47 °C, Systemlast ca. 8,9 % (audioserver AudioOut 22 %,
+  FastMixer 10 %, HAL-writer 15 %).
+- Wiedergabe mit deep_buffer: konstant 50–51 °C (Start war schon warm, kein fairer Vergleich),
+  Systemlast ca. 7,1 %, davon `AudioOut_15` ca. 20 % eines Kerns (Resampling 44,1 → 48 kHz,
+  ca. 7 ms pro 2048-Frame-Block, keine Effektketten). BesLoudness läuft im HAL.
+- Die ersten Werte stammen aus einer Testsession (USB, Bildschirm dauernd an, viele
+  Installationen). Nächster Schritt: Gerät abgekühlt normal nutzen und Temperatur mitloggen.
+
+Hardware-Decoder bringen nichts: Die `OMX.MTK.AUDIO.DECODER.*` sind Software-Decoder auf
+denselben ARM-Kernen, einen `COMPRESS_OFFLOAD`-Ausgang gibt es nicht. Das Dekodieren in
+Rockbox kostet ohnehin nur wenige Prozent.
+
+- Dual-DAC ES9018 (laut User), nur am Kopfhörer. Mixport `wired_headphone_direct` (DIRECT, PCM 16/32 Bit, 8–384 kHz) nur für
   Kopfhörer; Hersteller-Property `sys.audio.wired_direct_focus_uid` zeigt auf die App mit Fokus.
   Lautsprecher: `primary`/`deep_buffer`, 44,1/48 kHz, Mixer läuft mit 48 kHz.
 - Rockbox: Decoder/DSP/Mixer 16 Bit, Raten bis 192 kHz möglich (`SAMPR_CAP_ALL_192`,
   „Wiedergabefrequenz: Auto“), Android-Port derzeit fest 44,1 kHz. Natives DSD/384 kHz/24 Bit
-  nur mit tiefem Umbau. Idee „Originalrate bis 192 kHz über den Direktpfad“ ist notiert, der
-  User will das vorerst nicht verfolgen.
+  nur mit tiefem Umbau.
+- Mögliche nächste Schritte für Effizienz/Klang (noch nicht entschieden):
+  1. Kopfhörer: Originalrate bis 192 kHz über `wired_headphone_direct` (HW_SAMPR_CAPS
+     erweitern, AudioTrack bei Ratenwechsel neu anlegen, Wiedergabefrequenz Auto). Kein Mixer,
+     kein Resampling, bester Klang. Braucht eingesteckten Kopfhörer zum Testen.
+  2. Lautsprecher: Rockbox gibt 48 kHz aus (eigener, billiger Resampler). Klang bei 44,1-kHz-
+     Dateien vom User anhören lassen.
+  3. Bildschirm-Timeout im Wiedergabe-Bildschirm kurz halten.
+- Nach dem RockboxPCM-Umbau noch nicht getestet: Pause, Track-Wechsel, Lautstärke, Stop.
 
 ## Offene Fragen an den User (Stand 17.11.)
 
+- Tasten mit dem Gradle-Build (targetSdk 21): vom User bestätigt.
 - ANR bei Taste direkt nach Bildschirm-aus: Mit adb-injizierten Tasten ohne Displaysperre
   reproduzierbar ("Input dispatching timed out, no focused window", Rockbox wird beendet).
   Tritt auch mit dem alten GCC-Build auf. Vermutlich nur ein adb-Artefakt: `PhoneWindowManager`
