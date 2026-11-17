@@ -36,6 +36,15 @@ ein System-Remap ist nicht nötig.
 
 In den Einstellungen ändert das Rad den Wert.
 
+**Bildschirm aus** (Tasten kommen über die MediaSession, nicht über die Activity):
+
+| Taste | Aktion |
+|---|---|
+| Rad | Lautstärke (Android-Stream, wird in Rockbox übernommen) |
+| oben | Track zurück |
+| Mitte | Play/Pause, lang: Stop |
+| unten | Track vor |
+
 ## Änderungen gegenüber Rockbox
 
 - `firmware/asm/thread-unix.c`: Unter ART führte jeder JNI-Aufruf aus einem Rockbox-Thread
@@ -54,6 +63,16 @@ In den Einstellungen ändert das Rad den Wert.
 - `wps/WPSLIST`, `wps/cabbiev2.480x640x16.wps`, `backdrops/cabbiev2.480x640x16.bmp`,
   `wps/cabbiev2/backdrop-480x640x16.bmp`: cabbiev2-Theme für 480x640, ohne Touch-Regionen
   (verwendet die 480x800-Grafiken).
+- `Helper/PodBoxMediaSession.java`: MediaSession für die Media-Tasten bei ausgeschaltetem
+  Bildschirm. Android 12 schickt dem alten `registerMediaButtonEventReceiver`-Receiver
+  Broadcasts ohne KeyEvent, das hat zu NullPointerException-Abstürzen geführt.
+- `pcm-android.c`, `system-android.c`: globale statt lokaler JNI-Referenzen. Der
+  Java-Audio-Thread rief `stop()` auf einer ungültigen lokalen Referenz auf, das führte zu
+  einem CheckJNI-Abbruch bei Pause oder Track-Wechsel.
+- Keine Text-Relocations mehr (Android-Dialog „Detected problems with app native
+  libraries“): `-fPIC` und `-Wl,-z,text` in `tools/configure`, PC-relative Sprungtabelle in
+  `lib/rbcodec/dsp/dsp_arm.S`, Unwarminder/Backtrace für Android deaktiviert
+  (`tools/root.make`, `config/android.h`).
 
 ## Build
 
@@ -97,5 +116,4 @@ git merge upstream/master
 
 ## TODO
 
-- Bedienung bei ausgeschaltetem Bildschirm (MediaSession / VolumeProvider)
 - Modernisierung: arm64, aktuelles NDK (clang), Gradle, targetSdk ≥ 31

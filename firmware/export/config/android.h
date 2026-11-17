@@ -94,3 +94,7 @@
 /* No special storage */
 #define CONFIG_STORAGE STORAGE_HOSTFS
 #define HAVE_STORAGE_FLUSH
+
+/* PodBox: the unwarminder (native ARM backtrace) is not built for Android,
+ * it contains code that needs text relocations */
+#define DISABLE_BACKTRACE

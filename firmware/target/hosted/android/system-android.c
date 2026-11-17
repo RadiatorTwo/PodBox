@@ -110,8 +110,10 @@ Java_org_rockbox_RockboxService_main(JNIEnv *env, jobject this)
     {
         env_ptr = env;
 
-        RockboxService_instance = this;
-        RockboxService_class = (*env)->GetObjectClass(env, this);
+        /* PodBox: global refs, may be used from other (Java) threads */
+        RockboxService_instance = (*env)->NewGlobalRef(env, this);
+        RockboxService_class = (*env)->NewGlobalRef(env,
+                                    (*env)->GetObjectClass(env, this));
 
         main();
     }

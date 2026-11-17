@@ -30,6 +30,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import org.rockbox.Helper.Logger;
 import org.rockbox.Helper.MediaButtonReceiver;
+import org.rockbox.Helper.PodBoxMediaSession;
 import org.rockbox.Helper.RunForegroundManager;
 import android.app.Activity;
 import android.app.Service;
@@ -55,6 +56,7 @@ public class RockboxService extends Service
     private Activity mCurrentActivity = null;
     private RunForegroundManager mFgRunner;
     private MediaButtonReceiver mMediaButtonReceiver;
+    private PodBoxMediaSession mMediaSession;
     private ResultReceiver mResultReceiver;
 
     /* possible result values for intent handling */ 
@@ -70,6 +72,7 @@ public class RockboxService extends Service
     {
         instance = this;
         mMediaButtonReceiver = new MediaButtonReceiver(this);
+        mMediaSession = new PodBoxMediaSession(this);
         mFgRunner = new RunForegroundManager(this);
     }
 
@@ -125,8 +128,8 @@ public class RockboxService extends Service
         if (intent.getAction().equals(Intent.ACTION_MEDIA_BUTTON))
         {
             KeyEvent kev = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
-            RockboxFramebuffer.buttonHandler(kev.getKeyCode(), 
-                                kev.getAction() == KeyEvent.ACTION_DOWN);
+            if (kev != null)
+                RockboxFramebuffer.backgroundKey(kev);
         }
 
         /* (Re-)attach the media button receiver, in case it has been lost */
@@ -340,6 +343,9 @@ public class RockboxService extends Service
          * garbage collected.
          *  mMediaButtonReceiver.unregister(); */
         mMediaButtonReceiver = null;
+        if (mMediaSession != null)
+            mMediaSession.release();
+        mMediaSession = null;
         /* Make sure our notification is gone. */
         stopForeground();
         instance = null;

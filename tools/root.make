@@ -72,7 +72,7 @@ ifeq (,$(findstring checkwps,$(APP_TYPE)))
       include $(ROOTDIR)/apps/bitmaps/bitmaps.make
       ifeq (arch_arm,$(ARCH))
           # some targets don't use the unwarminder because they have the glibc backtrace
-          ifeq (,$(filter sonynwz,$(APP_TYPE)))
+          ifeq (,$(filter sonynwz android,$(APP_TYPE)))
             include $(ROOTDIR)/lib/unwarminder/unwarminder.make
           endif
       endif

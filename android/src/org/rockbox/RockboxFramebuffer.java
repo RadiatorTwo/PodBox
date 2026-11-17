@@ -111,6 +111,42 @@ public class RockboxFramebuffer extends SurfaceView
     /* PodBox: middle hardware key, short press = play/pause,
      * long press = stop (decided on release) */
     private static final long LONG_PRESS_MS = 600;
+    /* KeyEvent.KEYCODE_MEDIA_SKIP_* (API 23) */
+    private static final int KEYCODE_MEDIA_SKIP_FORWARD  = 272;
+    private static final int KEYCODE_MEDIA_SKIP_BACKWARD = 273;
+
+    /* PodBox: keys delivered via the media session while the activity is
+     * not in front (screen off). The current Rockbox screen is invisible
+     * then, so map the keys to global playback actions instead of
+     * navigation: top = previous track, bottom = next track,
+     * middle = play/pause (long: stop). The wheel (VOLUME_UP/DOWN) changes
+     * the Android stream volume, which RockboxPCM syncs into Rockbox. */
+    public static boolean backgroundKey(KeyEvent event)
+    {
+        boolean up = event.getAction() == KeyEvent.ACTION_UP;
+        switch (event.getKeyCode())
+        {
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                if (up)
+                    buttonHandler(KEYCODE_MEDIA_SKIP_BACKWARD, false);
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_NEXT:
+                if (up)
+                    buttonHandler(KEYCODE_MEDIA_SKIP_FORWARD, false);
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                if (up)
+                {
+                    long held = event.getEventTime() - event.getDownTime();
+                    buttonHandler(held >= LONG_PRESS_MS ? KeyEvent.KEYCODE_MEDIA_STOP
+                                                        : KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                                  false);
+                }
+                return true;
+            default:
+                return buttonHandler(event.getKeyCode(), !up);
+        }
+    }
 
     public boolean onKeyDown(int keyCode, KeyEvent event)
     {

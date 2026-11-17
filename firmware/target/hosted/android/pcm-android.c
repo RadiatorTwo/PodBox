@@ -186,10 +186,15 @@ static void sink_dma_init(void)
      **/
     JNIEnv e = *env_ptr;
     /* get the class and its constructor */
-    RockboxPCM_class = e->FindClass(env_ptr, "org/rockbox/RockboxPCM");
+    /* PodBox: global references, sink_dma_stop() is also called from the
+     * Java audio thread (nativeWrite) where local refs of the Rockbox
+     * thread are invalid -> CheckJNI abort on pause/track change */
+    jclass cls = e->FindClass(env_ptr, "org/rockbox/RockboxPCM");
+    RockboxPCM_class = e->NewGlobalRef(env_ptr, cls);
     jmethodID constructor = e->GetMethodID(env_ptr, RockboxPCM_class, "<init>", "()V");
     /* instance = new RockboxPCM() */
-    RockboxPCM_instance = e->NewObject(env_ptr, RockboxPCM_class, constructor);
+    jobject obj = e->NewObject(env_ptr, RockboxPCM_class, constructor);
+    RockboxPCM_instance = e->NewGlobalRef(env_ptr, obj);
     /* cache needed methods */
     play_pause_method = e->GetMethodID(env_ptr, RockboxPCM_class, "play_pause", "(Z)V");
     set_volume_method = e->GetMethodID(env_ptr, RockboxPCM_class, "set_volume", "(I)V");

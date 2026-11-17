@@ -80,7 +80,12 @@ unsigned multimedia_to_button(int keyboard_key)
         case KEYCODE_MEDIA_STOP:
             return BUTTON_MULTIMEDIA_STOP;
         /* MEDIA_NEXT / MEDIA_PREVIOUS are hardware keys on PodBox,
-         * see key_to_button() */
+         * see key_to_button(). While the screen is off they are sent
+         * as SKIP_FORWARD / SKIP_BACKWARD (RockboxFramebuffer.java) */
+        case KEYCODE_MEDIA_SKIP_FORWARD:
+            return BUTTON_MULTIMEDIA_NEXT;
+        case KEYCODE_MEDIA_SKIP_BACKWARD:
+            return BUTTON_MULTIMEDIA_PREV;
         case KEYCODE_MEDIA_REWIND:
             return BUTTON_MULTIMEDIA_REW;
         case KEYCODE_MEDIA_FAST_FORWARD:

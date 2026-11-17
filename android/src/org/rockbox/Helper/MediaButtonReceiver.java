@@ -85,12 +85,13 @@ public class MediaButtonReceiver
             if (Intent.ACTION_MEDIA_BUTTON.equals(intent.getAction()))
             {
                 KeyEvent key = (KeyEvent)intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
-                if (key.getAction() == KeyEvent.ACTION_UP)
+                /* Android 12 may deliver MEDIA_BUTTON without a key event */
+                if (key != null && key.getAction() == KeyEvent.ACTION_UP)
                 {   /* pass the pressed key to Rockbox, starting it if needed */
                     RockboxService s = RockboxService.getInstance();
                     if (s == null || !s.isRockboxRunning())
                         startService(context, intent);
-                    else if (RockboxFramebuffer.buttonHandler(key.getKeyCode(), false))
+                    else if (RockboxFramebuffer.backgroundKey(key))
                         abortBroadcast();
                 }
             }
@@ -119,7 +120,8 @@ public class MediaButtonReceiver
         public void register()
         {
             try {
-                audio_manager.registerMediaButtonEventReceiver(receiver_name);
+                /* PodBox: media keys are handled by PodBoxMediaSession,
+                 * the legacy receiver gets no KeyEvent on Android 12 */
                 audio_manager.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
                 running = true;
             } catch (Exception e) {
@@ -132,7 +134,6 @@ public class MediaButtonReceiver
         {
             try
             {
-                audio_manager.unregisterMediaButtonEventReceiver(receiver_name);
                 audio_manager.abandonAudioFocus(this);
                 running = false;
             } catch (Exception e) {

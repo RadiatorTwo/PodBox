@@ -688,12 +688,14 @@ androidcc () {
         LDOPTS="$LDOPTS -Wl,-soname,librockbox.so -shared"
     fi
     SHARED_LDFLAGS="-shared"
-    SHARED_CFLAGS=''
-    GLOBAL_LDOPTS="-Wl,-z,defs -Wl,-z,noexecstack"
+    # PodBox: position independent code, Android >= 6 rejects (warns about)
+    # libraries with text relocations
+    SHARED_CFLAGS='-fPIC'
+    GLOBAL_LDOPTS="-Wl,-z,defs -Wl,-z,noexecstack -Wl,-z,text"
     thread_support="HAVE_SIGALTSTACK_THREADS"
     ANDROID_ARCH=$2 # for android.make too
     ANDROID_PLATFORM_VERSION=$1
-    GCCOPTS="$GCCOPTS $3"
+    GCCOPTS="$GCCOPTS $3 -fPIC"
     gccchoice="4.9"
     rm -rf "${pwd}/android-toolchain" # old toolchain must be removed before running script
     # arch dependant stuff
