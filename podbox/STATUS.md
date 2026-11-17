@@ -13,7 +13,7 @@ bedient wie ein echtes Rockbox-Gerät, komplett über die Hardware: Drehrad, Rad
 | Bereich | Stand |
 |---|---|
 | Start und Laufzeit | Rockbox startet und läuft stabil unter Android 12 |
-| Darstellung | Vollbild ohne Android-Leisten, cabbiev2-Theme in 480x640, Schrift 27 px, 24x24-Icons |
+| Darstellung | Vollbild ohne Android-Leisten, cabbiev2-Theme in 480x640, Schrift 35 px, 32x32-Icons, eigene 44-px-Statusleiste |
 | Wiedergabe | Abspielen, Pause, Track vor/zurück, Lautstärke |
 | Formate | WAV, MP3, FLAC, AAC (m4a), Vorbis, Opus spielen ab |
 | Album-Art | eingebettet (MP3, FLAC, m4a) und `cover.jpg` im Ordner |

@@ -346,7 +346,13 @@ static const char graphic_numeric[] = "graphic,numeric";
 
 /* Default theme settings */
 #define DEFAULT_WPSNAME  "cabbiev2"
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID) && LCD_WIDTH == 480 && LCD_HEIGHT == 640
+/* PodBox: large statusbar (cabbiev2.480x640x16.sbs), the built-in one is
+ * only 8 px high */
+#define DEFAULT_SBSNAME  "cabbiev2"
+#else
 #define DEFAULT_SBSNAME  "-"
+#endif
 #define DEFAULT_FMS_NAME "cabbiev2"
 #define DEFAULT_WRS_NAME "cabbiev2"
 
@@ -373,7 +379,7 @@ static const char graphic_numeric[] = "graphic,numeric";
   #define DEFAULT_FONT_HEIGHT 16
 #elif (CONFIG_PLATFORM & PLATFORM_ANDROID) && LCD_WIDTH == 480 && LCD_HEIGHT == 640
   /* PodBox (Surfans F20 Pro+), matches cabbiev2.480x640 theme */
-  #define DEFAULT_FONT_HEIGHT 27
+  #define DEFAULT_FONT_HEIGHT 35
 #elif LCD_HEIGHT <= 480 && LCD_WIDTH < 800
   #define DEFAULT_FONT_HEIGHT 27
 #else

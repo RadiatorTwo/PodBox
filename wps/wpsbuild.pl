@@ -626,9 +626,10 @@ while(<WPS>) {
             $wps = '';
         }
 
+        # an sbs given for this resolution wins over "SBS: no" (PodBox)
         if ($has_sbs eq "yes" && !$sbs) {
             $sbs = check_skinfile("sbs");
-        } elsif ($has_sbs eq "no") {
+        } elsif ($has_sbs eq "no" && !$sbs) {
             $sbs = '';
         }
 

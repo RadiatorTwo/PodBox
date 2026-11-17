@@ -23,6 +23,7 @@
 # Header
 #
 %Fl(2,27-Adobe-Helvetica-Bold.fnt)
+%Fl(3,27-Adobe-Helvetica.fnt)
 %V(25,22,430,27,2)%Vf(0F0B00)
 %acNOW PLAYING
 
@@ -48,11 +49,12 @@
 %Cd
 
 # current + next track info - with album art
-%Vl(d,0,300,-,165,-)
+# (title/artist/album in the UI font, next track smaller below)
+%Vl(d,0,298,-,114,-)
 %s%ac%?it<%it|%fn>
 %s%ac%?ia<%ia|%?iA<%iA|%?d(2)<%d(2)|%(root%)>>>
 %s%ac%?id<%id|%?d(1)<%d(1)|%(root%)>>
-%ac
+%Vl(d,0,424,-,32,3)
 %s%ac%Sx(Next:) %?It<%It|%Fn>
 
 #
@@ -70,7 +72,7 @@
 #
 # playtime
 #
-%V(25,515,430,30,-)
+%V(25,512,430,38,-)
 %pc%ac%?Sr<%pe %Sx(of) %pp|%pp %Sx(of) %pe>%ar%pr
 
 #
