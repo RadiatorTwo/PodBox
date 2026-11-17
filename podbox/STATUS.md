@@ -18,6 +18,7 @@ bedient wie ein echtes Rockbox-Gerät, komplett über die Hardware: Drehrad, Rad
 | Formate | WAV, MP3, FLAC, AAC (m4a), Vorbis, Opus spielen ab |
 | Album-Art | eingebettet (MP3, FLAC, m4a) und `cover.jpg` im Ordner |
 | Datenbank | Neu generieren und Aktualisieren direkt übernommen, keine Duplikate, Browsen und Abspielen |
+| SD-Karte | wird automatisch gescannt (185 Titel in < 5 s), Browser startet in `/storage/FEF0-07FF/Music/` |
 | Ja/Nein-Dialoge | nativer Rockbox-Dialog, per Tasten bedienbar, mit Timeout |
 | Wiedergabe-Bildschirm (WPS) | eigenes Layout für 480x640, Lautstärke-Overlay beim Drehen |
 | Hardware-Tasten (App im Vordergrund) | Drehrad, Rad-Button, oben/Mitte/unten mit kurz/lang |
@@ -68,6 +69,10 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     (`/sdcard` → `/storage/emulated/0`), gespeichert waren sie unaufgelöst. Deshalb wurde nichts
     gefunden: Jedes Aktualisieren hat alle Dateien neu aufgenommen, und die Statistiken
     (Wiedergabezähler) fanden ihre Einträge nicht. Auf Android wird jetzt nicht mehr aufgelöst.
+12. **SD-Karte nicht in der Datenbank:** Gescannt wurde nur `/sdcard`. Jetzt werden alle
+    Wechselkarten aus `/proc/self/mounts` mitgescannt (`apps/tagcache.c`). Das Startverzeichnis
+    des Browsers steht in `config.cfg` auf `/storage/FEF0-07FF/Music/` (nur auf dem Gerät gesetzt).
+    Fehlt die Karte, fällt Rockbox von selbst auf `/` zurück.
 
 ## Build-Umgebung
 
@@ -84,7 +89,8 @@ Details stehen in `podbox/README.md`.
 
 - [ ] Bildschirm-aus-Bedienung mit den echten Tasten bestätigen
 - [ ] Sperrbildschirm: optional die Displaysperre in Android auf „Keine“ stellen
-- [ ] Testordner `/sdcard/Music/PodBoxTest` auf dem Gerät löschen und die Datenbank aktualisieren
+- [ ] Zurück-Taste im Hauptmenü schickt Rockbox in den Hintergrund (Android-Launcher)
+- [ ] Zurück im Browser vom Startverzeichnis springt nach `/` (Android-Wurzel) statt eine Ebene hoch
 - [ ] Leeren Ordner `F:\!Code2\PodBox\rockbox` löschen (war beim Umzug gesperrt)
 - [ ] Modernisierung: arm64-v8a, aktuelles NDK (clang), Gradle statt `android.make`,
       `targetSdk` ≥ 31 (dann Scoped Storage / `MANAGE_EXTERNAL_STORAGE`, Foreground-Service-Typ,

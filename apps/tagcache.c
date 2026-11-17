@@ -5266,6 +5266,52 @@ commit:
 }
 
 #ifndef __PCTOOL__
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+/* PodBox: Android mounts SD cards as /storage/XXXX-XXXX. Add each such
+ * volume to the scan paths, so the database finds the music on the card
+ * without the user having to know the volume id (it changes with the card).
+ * /storage itself can't be listed by apps, so read the mount table. */
+static int add_android_volumes(char **vect, int count, int max)
+{
+    static char volpaths[MAX_STATIC_ROOTS][64];
+    char line[512];
+    int n = 0;
+    int fd = open("/proc/self/mounts", O_RDONLY);
+    if (fd < 0)
+        return count;
+
+    while (count < max && n < MAX_STATIC_ROOTS &&
+           read_line(fd, line, sizeof(line)) > 0)
+    {
+        char *path = volpaths[n];
+        /* "<device> <mount point> <type> ..." */
+        if (sscanf(line, "%*s %63s", path) != 1 ||
+            strncmp(path, "/storage/", 9))
+            continue;
+
+        const char *name = path + 9;
+        /* only direct children, skip the internal storage and its aliases */
+        if (!*name || strchr(name, '/') || !strcmp(name, "emulated") ||
+            !strcmp(name, "self") || !strncmp(name, "sdcard", 6))
+            continue;
+
+        bool listed = false;
+        for (int i = 0; i < count; i++)
+        {
+            if (!strcmp(vect[i], path))
+                listed = true;
+        }
+        if (!listed)
+        {
+            vect[count++] = path;
+            n++;
+        }
+    }
+    close(fd);
+    return count;
+}
+#endif /* PLATFORM_ANDROID */
+
 void tagcache_build(void)
 {
     char *vect[MAX_STATIC_ROOTS + 1]; /* +1 to ensure NULL sentinel */
@@ -5273,6 +5319,9 @@ void tagcache_build(void)
     strmemccpy(str, global_settings.tagcache_scan_paths, sizeof(str));
 
     int res = split_string(str, ':', vect, MAX_STATIC_ROOTS);
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+    res = add_android_volumes(vect, res, MAX_STATIC_ROOTS);
+#endif
     vect[res] = NULL;
 
     do_tagcache_build((const char**)vect);

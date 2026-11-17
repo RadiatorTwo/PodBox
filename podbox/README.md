@@ -83,6 +83,9 @@ In den Einstellungen ändert das Rad den Wert.
   - `find_entry_disk()` löst den Pfad auf Android nicht mehr mit `realpath()` auf. `/sdcard`
     ist ein Symlink, deshalb passte kein Eintrag. Folge war, dass „Jetzt aktualisieren“ jede
     Datei doppelt aufnahm und die Laufzeitstatistiken ihre Einträge nie fanden.
+  - SD-Karte: `tagcache_build()` hängt auf Android jede Wechselkarte (`/storage/XXXX-XXXX`
+    aus `/proc/self/mounts`) an die Scan-Pfade an. `/storage` selbst darf eine App nicht
+    auflisten. Die Volume-ID der Karte muss man dafür nicht kennen.
 
 ## Build
 
