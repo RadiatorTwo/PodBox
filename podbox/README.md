@@ -87,8 +87,8 @@ In den Einstellungen ändert das Rad den Wert.
     aus `/proc/self/mounts`) an die Scan-Pfade an. `/storage` selbst darf eine App nicht
     auflisten. Die Volume-ID der Karte muss man dafür nicht kennen.
 - Größere Darstellung: Schrift 35-Adobe-Helvetica und 32x32-Icons (`apps/settings_list.c`,
-  `wps/WPSLIST`). Eigene Statusleiste `wps/cabbiev2.480x640x16.sbs`, 44 px hoch, Icons aus
-  `classic_statusbar` doppelt groß (`wps/cabbiev2/sb-*-480x640x16.bmp`, 1-Bit wie die
+  `wps/WPSLIST`). Eigene Statusleiste `wps/cabbiev2.480x640x16.sbs`, 32 px hoch, Icons aus
+  `classic_statusbar` 1,5-fach vergrößert (`wps/cabbiev2/sb-*-480x640x16.bmp`, 1-Bit wie die
   Originale). Die eingebaute Statusleiste ist nur 8 px hoch. `wps/wpsbuild.pl`: Ein `sbs` für
   eine bestimmte Auflösung hat Vorrang vor `SBS: no`. WPS an die größere Schrift angepasst.
 - `apps/tree.c`: Kann der Browser den Elternordner nicht öffnen (`/storage`,

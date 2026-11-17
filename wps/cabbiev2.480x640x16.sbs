@@ -1,13 +1,13 @@
 # Cabbie v2.0 statusbar - 480x640 (PodBox / Surfans F20 Pro+)
 # (C) 2007-2012 The Authors (see /rockbox/wps/AUTHORS)
-# Based on classic_statusbar.24.sbs, everything at twice the size
-# (icons scaled 2x, nearest neighbour) so it is readable on the 480x640
-# screen. Bar height 44 px.
+# Based on classic_statusbar.24.sbs, everything at 1.5 times the size
+# (icons scaled 1.5x, nearest neighbour) so it is readable on the 480x640
+# screen. Bar height 32 px.
 
 # UI area: everything below the bar
-%Vi(-,0,44,-,-,1)
+%Vi(-,0,32,-,-,1)
 
-%Fl(2,27-Adobe-Helvetica.fnt)
+%Fl(2,21-Adobe-Helvetica.fnt)
 
 # Conditional for showing volume as number or graphic
 %?if(%St(volume display), =, numeric)<%Vd(d)|%Vd(c)>
@@ -26,43 +26,43 @@
 %t(2)%?bc<%Vd(x)|%Vd(a)>;%t(2)%Vd(a)
 
 # Battery, icon
-%Vl(a,10,8,68,28,0)
+%Vl(a,8,5,51,21,0)
 %?bl<%xd(Ba)|%xd(Bb)|%xd(Bc)|%xd(Bd)|%xd(Be)|%xd(Bf)|%xd(Bg)|%xd(Bh)|%xd(Bi)|%xd(Bj)|%xd(Bk)|%xd(Bl)|%xd(Bm)|%xd(Bn)|%xd(Bo)>
 
 # Battery, grey background for the charging animation
-%Vl(x,10,8,68,28,0)%Vb(555555)
+%Vl(x,8,5,51,21,0)%Vb(555555)
 
 # end of the battery symbol (not animated)
-%Vl(e,78,8,4,28,0)
+%Vl(e,59,5,3,21,0)
 %xd(y)
 
 # usb power or charger icon
-%V(88,6,28,32,0)
+%V(66,4,21,24,0)
 %?bu<%xd(Sa)|%?bc<%xd(Sa)|%?bp<%xd(So)>>>
 
 # Battery, as number
-%Vl(b,10,6,100,32,2)
+%Vl(b,8,4,80,24,2)
 %al%bl%%
 
 # Volume, icon
-%Vl(c,130,8,56,28,0)
+%Vl(c,96,5,42,21,0)
 %?pv<%xd(Va)|%xd(Vb)|%xd(Vc)|%xd(Vd)|%xd(Ve)|%xd(Vf)|%xd(Vg)|%xd(Vh)|%xd(Vi)|%xd(Vj)|%xd(Vk)|%xd(Vl)|%xd(Vm)|%xd(Vn)|%xd(Vo)|%xd(Vp)|%xd(Vq)>
 # Volume, as number
-%Vl(d,120,6,110,32,2)
+%Vl(d,90,4,90,24,2)
 %ac%pv
 
 # Playback status
-%Vl(p,236,6,28,32,0)
+%Vl(p,176,4,21,24,0)
 %?mp<%xd(Sc)|%xd(Sb)|%xd(Sd)|%xd(Se)|%xd(Sf)|%xd(Sg)|%xd(Sh)|%xd(Si)|%xd(Sj)>
 
 # Repeat mode
-%Vl(r,272,6,28,32,0)
+%Vl(r,203,4,21,24,0)
 %?mm<|%xd(Sk)|%xd(Sl)|%xd(Sm)|%xd(Sn)>
 
 # Shuffle mode
-%Vl(s,308,6,28,32,0)
+%Vl(s,230,4,21,24,0)
 %?ps<%xd(Sm)|>
 
 # Clock
-%V(-140,6,130,32,2)
+%V(-100,4,92,24,2)
 %ar%?cc<%?ca<%?St(time format)<%cH|%cI>:%cM|--:-->|>
