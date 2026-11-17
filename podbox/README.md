@@ -101,6 +101,12 @@ In den Einstellungen ändert das Rad den Wert.
 - arm64-v8a (`ANDROID_ABI=arm64-v8a`, Standard in `build.sh`). Die Codecs werden aus
   `nativeLibraryDir` geladen (`RockboxService` setzt `ROCKBOX_BINDIR`, `filesystem-app.c`),
   der alte Link `/data/data/org.rockbox/lib` zeigte nach dem Wechsel noch auf `lib/arm`.
+- APK per Gradle (`android/build.gradle`, Wrapper 8.9, AGP 8.7) statt `android.make`. Der native
+  Teil bleibt bei `configure` + `make`; `make libs` legt librockbox, Codecs und `libmisc.so`
+  (= rockbox.zip) nach `<build>/libs/<abi>`, Gradle packt sie als `jniLibs` dazu
+  (`useLegacyPackaging`, weil Rockbox die Libs aus `nativeLibraryDir` liest). `package`,
+  Version und `uses-sdk` stehen nicht mehr im Manifest; `android.make` setzt sie für den alten
+  Weg (`PODBOX_APK=make`) per sed wieder ein.
 
 ## Build
 
@@ -131,8 +137,12 @@ Gebaut wird mit NDK r27 (clang) für arm64-v8a, das Build-Verzeichnis liegt in d
 `~/podbox/build-arm64`, die APK landet im Repo-Root. Andere Varianten über Umgebungsvariablen
 (siehe Kopf von `build.sh`): `ANDROID_ABI=armeabi` für 32 Bit, NDK r16b (GCC 4.9) über
 `ANDROID_NDK_PATH`.
-Das Skript signiert die APK mit `apksigner` neu, weil Android 12 die alte MD5/SHA1-Signatur
-aus `android.make` ablehnt.
+Die APK baut Gradle (`android/gradlew`, lädt beim ersten Lauf Gradle 8.9 und das Android
+Gradle Plugin). Gradle-Ausgaben und -Cache liegen im Build-Verzeichnis (`gradle/`,
+`gradle-cache/`), nicht im Quellbaum. Signiert wird mit `~/podbox/podbox.keystore`
+(Alias `podbox`), den `build.sh` beim ersten Lauf anlegt.
+Mit `PODBOX_APK=make` läuft noch der alte Weg über `android.make`; dann signiert das Skript
+mit `apksigner` neu, weil Android 12 die alte MD5/SHA1-Signatur ablehnt.
 
 Die repo-lokale Git-Einstellung `core.eol=lf` ist nötig, sonst checkt Git unter Windows
 mit CRLF aus und `tools/configure` läuft nicht.
@@ -146,4 +156,4 @@ git merge upstream/master
 
 ## TODO
 
-- Modernisierung: Gradle, targetSdk ≥ 31
+- Modernisierung: targetSdk ≥ 31

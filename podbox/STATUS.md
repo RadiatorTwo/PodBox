@@ -1,7 +1,7 @@
 # PodBox – Projektstand
 
-Stand: 17.11.2026, Commit `d182553d70` auf `main` (github.com/RadiatorTwo/PodBox).
-Auf dem Gerät installiert: 64-Bit-Build (arm64-v8a, NDK r27) aus diesem Commit.
+Stand: 17.11.2026, `main` (github.com/RadiatorTwo/PodBox), Etappe 3 (Gradle) fertig.
+Auf dem Gerät installiert: 64-Bit-Build (arm64-v8a, NDK r27), APK per Gradle gebaut.
 
 ## Ziel
 
@@ -89,15 +89,17 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
 |---|---|
 | 1. NDK r27 (clang) statt r16b (GCC 4.9) | fertig, Commit `9f34d8cf78` |
 | 2. arm64-v8a als Standard | fertig, Commit `d182553d70` |
-| 3. Gradle statt `android.make` für Java/APK | offen |
+| 3. Gradle statt `android.make` für Java/APK | fertig |
 | 4. `targetSdk` ≥ 31 (34 angepeilt) | offen |
 
-**Etappe 3, Plan:** Der native Teil bleibt bei `configure` + `make` (so baut Rockbox). Gradle
-(Android Gradle Plugin, Wrapper ins Repo) übernimmt nur Java, Ressourcen, Manifest, Packen und
-Signieren. Die fertigen `.so` (librockbox, Codecs, `libmisc.so` = rockbox.zip) aus
-`~/podbox/build-arm64/libs/arm64-v8a` kommen als `jniLibs` dazu. `build.sh` ruft danach Gradle
-statt `make apk` auf. Es gibt noch kein Gradle in der WSL, und es fehlen `platforms;android-34`
-und `build-tools;34.x` (per `sdkmanager` nachinstallieren). JDK 17 ist vorhanden.
+**Etappe 3, umgesetzt:** Der native Teil bleibt bei `configure` + `make`. `build.sh` ruft
+`make libs` und dann `android/gradlew assembleDebug` auf (Gradle 8.9, AGP 8.7.3,
+`compileSdk` 34, `minSdk`/`targetSdk` 21). Die `.so` aus `<build>/libs/arm64-v8a` kommen als
+`jniLibs` dazu, mit `useLegacyPackaging` (Libs werden beim Installieren entpackt, Rockbox liest
+sie aus `nativeLibraryDir`). Signiert wird mit dem PodBox-Keystore, `adb install -r` geht ohne
+Neuinstallation. Gradle-Ausgaben liegen in `~/podbox/build-arm64/gradle`. Auf dem Gerät getestet:
+Start, Menü, Ja/Nein-Dialog, Browser, FLAC-Wiedergabe mit Album-Art. Der alte Weg geht noch mit
+`PODBOX_APK=make`. `targetSdk` ist dabei von 5 (implizit, `minSdkVersion=5`) auf 21 gestiegen.
 
 **Etappe 4, was bei targetSdk ≥ 31 nötig wird:**
 - `android:exported` an allen Activities/Services/Receivern mit Intent-Filter
@@ -129,7 +131,10 @@ und `build-tools;34.x` (per `sdkmanager` nachinstallieren). JDK 17 ist vorhanden
 
 - WSL2 `archlinux` (Standardshell fish, deshalb immer `wsl -d archlinux -e bash ...`)
 - NDK r27 (clang 18) unter `~/android/sdk/ndk/27.2.12479018`, arm64-v8a; SDK unter
-  `~/android/sdk`, build-tools 30.0.3, platform 21. 32 Bit und NDK r16b gehen weiter, siehe `build.sh`
+  `~/android/sdk`, build-tools 30.0.3 + 34.0.0, platforms 21 + 34. 32 Bit und NDK r16b gehen
+  weiter, siehe `build.sh`
+- Gradle per Wrapper (`android/gradlew`, Distribution in `~/.gradle`); eine lose Gradle-8.9-
+  Installation liegt zusätzlich unter `~/podbox/tools/gradle-8.9` (nur zum Erzeugen des Wrappers)
 - Build-Verzeichnis `~/podbox/build-arm64`, Keystore `~/podbox/podbox.keystore`
 - Bauen: `MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/f/!Code2/PodBox/podbox/build.sh" [zip]`
 - Installieren: `adb install -r podbox.apk`
@@ -144,7 +149,7 @@ per adb nicht auslösen.
 
 ## Offene Punkte
 
-- [ ] Modernisierung Etappe 3 (Gradle) und 4 (targetSdk), siehe oben
+- [ ] Modernisierung Etappe 4 (targetSdk), siehe oben
 - [ ] Testordner `/sdcard/Music/PodBoxTest` (MP3/FLAC/AAC/OGG/Opus) liegt wieder auf dem Gerät,
       nach den Tests löschen und Datenbank aktualisieren
 - [ ] Leeren Ordner `F:\!Code2\PodBox\rockbox` löschen (war beim Umzug gesperrt)

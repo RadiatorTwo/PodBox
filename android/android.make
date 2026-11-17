@@ -88,7 +88,7 @@ JAVAC_OPTS += -source 1.7 -target 1.7 -implicit:none -classpath $(ANDROID_PLATFO
 
 .PHONY:
 $(MANIFEST): $(MANIFEST_SRC) $(DIRS)
-	$(call PRINTS,MANIFEST $(@F))sed -e 's/versionName="1.0"/versionName="$(SVNVERSION)"/;s/screenOrientation="portrait"/screenOrientation="$(LCDORIENTATION)"/' $(MANIFEST_SRC) > $(MANIFEST)
+	$(call PRINTS,MANIFEST $(@F))sed -e 's/<manifest /<manifest package="$(PACKAGE)" android:versionCode="1" android:versionName="$(SVNVERSION)" /;s|</manifest>|<uses-sdk android:minSdkVersion="5" /></manifest>|;s/screenOrientation="portrait"/screenOrientation="$(LCDORIENTATION)"/' $(MANIFEST_SRC) > $(MANIFEST)
 
 $(R_JAVA) $(AP_): $(MANIFEST) $(RES) | $(DIRS)
 	$(call PRINTS,AAPT $(subst $(BUILDDIR)/,,$@))$(AAPT) package -f -m \

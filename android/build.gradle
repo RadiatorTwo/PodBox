@@ -1,0 +1,74 @@
+// PodBox APK build (Android Gradle Plugin). Called by podbox/build.sh:
+//   ./gradlew -Ppodbox.build=<rockbox build dir> assembleDebug
+// Keeps the old Rockbox source layout (src/, res/, AndroidManifest.xml).
+plugins {
+    id 'com.android.application' version '8.7.3'
+}
+
+def rbBuild = file(findProperty('podbox.build') ?: "${System.getProperty('user.home')}/podbox/build-arm64")
+def keystore = file(findProperty('podbox.keystore') ?: "${System.getProperty('user.home')}/podbox/podbox.keystore")
+
+// Gradle output goes next to the native build, not into the source tree
+layout.buildDirectory = new File(rbBuild, 'gradle')
+
+android {
+    namespace 'org.rockbox'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'org.rockbox'
+        // API 21 is what the native part is built for (tools/configure)
+        minSdk 21
+        targetSdk 21
+        versionCode 1
+        versionName(findProperty('podbox.version') ?: '1.0')
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['src']
+            res.srcDirs = ['res']
+            jniLibs.srcDirs = [new File(rbBuild, 'libs')]
+        }
+    }
+
+    signingConfigs {
+        podbox {
+            storeFile keystore
+            storePassword 'android'
+            keyAlias 'podbox'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.podbox
+        }
+        release {
+            signingConfig signingConfigs.podbox
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    packaging {
+        jniLibs {
+            // Rockbox loads codecs and libmisc.so (a zip) from nativeLibraryDir,
+            // so the libs must be extracted on install.
+            useLegacyPackaging true
+            // already stripped by make; libmisc.so is not an ELF at all
+            keepDebugSymbols += ['**/*.so']
+        }
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}

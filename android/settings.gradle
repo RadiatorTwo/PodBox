@@ -1,0 +1,20 @@
+// PodBox: Gradle builds only the Java/APK part. The native part (librockbox.so,
+// codecs, libmisc.so = rockbox.zip) is built by tools/configure + make and
+// picked up as jniLibs, see build.gradle and podbox/build.sh.
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'rockbox'

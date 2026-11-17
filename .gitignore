@@ -342,3 +342,7 @@ __pycache__
 
 # PodBox
 /podbox.apk
+/android/.gradle/
+/android/build/
+/android/local.properties
+/android/.idea/
