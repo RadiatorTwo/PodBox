@@ -73,6 +73,9 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     Wechselkarten aus `/proc/self/mounts` mitgescannt (`apps/tagcache.c`). Das Startverzeichnis
     des Browsers steht in `config.cfg` auf `/storage/FEF0-07FF/Music/` (nur auf dem Gerät gesetzt).
     Fehlt die Karte, fällt Rockbox von selbst auf `/` zurück.
+13. **Zurück im Browser landete in `/`:** Die Elternordner `/storage` und `/storage/emulated`
+    darf eine App nicht öffnen, Rockbox fiel dann auf die Android-Wurzel zurück. Jetzt gilt ein
+    nicht lesbarer Elternordner als oberste Ebene, Zurück führt ins Hauptmenü (`apps/tree.c`).
 
 ## Build-Umgebung
 
@@ -89,8 +92,6 @@ Details stehen in `podbox/README.md`.
 
 - [ ] Bildschirm-aus-Bedienung mit den echten Tasten bestätigen
 - [ ] Sperrbildschirm: optional die Displaysperre in Android auf „Keine“ stellen
-- [ ] Zurück-Taste im Hauptmenü schickt Rockbox in den Hintergrund (Android-Launcher)
-- [ ] Zurück im Browser vom Startverzeichnis springt nach `/` (Android-Wurzel) statt eine Ebene hoch
 - [ ] Leeren Ordner `F:\!Code2\PodBox\rockbox` löschen (war beim Umzug gesperrt)
 - [ ] Modernisierung: arm64-v8a, aktuelles NDK (clang), Gradle statt `android.make`,
       `targetSdk` ≥ 31 (dann Scoped Storage / `MANAGE_EXTERNAL_STORAGE`, Foreground-Service-Typ,

@@ -721,6 +721,31 @@ static int exit_to_new_screen(int screen)
 }
 
 /* main loop, handles key events */
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+static bool parent_dir_readable(const char *dirpath)
+{
+    char parent[MAX_PATH];
+    strmemccpy(parent, dirpath, sizeof(parent));
+
+    char *end = parent + strlen(parent);
+    while (end > parent + 1 && end[-1] == PATH_SEPCH) /* trailing slashes */
+        *--end = ' ';
+    char *slash = strrchr(parent, PATH_SEPCH);
+    if (!slash)
+        return true;
+    if (slash == parent)
+        slash[1] = ' '; /* parent is "/" */
+    else
+        *slash = ' ';
+
+    DIR *dir = opendir(parent);
+    if (!dir)
+        return false;
+    closedir(dir);
+    return true;
+}
+#endif
+
 static int dirbrowse(void)
 {
     int numentries=0;
@@ -839,6 +864,18 @@ static int dirbrowse(void)
                     else
                         return exit_to_new_screen(GO_TO_ROOT);
                 }
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+                /* PodBox: apps may not open /storage or /storage/emulated.
+                 * Going up into them made Rockbox fall back to the Android
+                 * root "/", so treat an unreadable parent as the top level. */
+                if (*tc.dirfilter != SHOW_ID3DB && !parent_dir_readable(currdir))
+                {
+                    if (oldbutton == ACTION_TREE_PGLEFT)
+                        break;
+                    else
+                        return exit_to_new_screen(GO_TO_ROOT);
+                }
+#endif
 
 #ifdef HAVE_TAGCACHE
                 if (id3db)
