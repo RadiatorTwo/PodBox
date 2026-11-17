@@ -27,8 +27,10 @@ bedient wie ein echtes Rockbox-Gerät, komplett über die Hardware: Drehrad, Rad
 | Native Libs | keine text relocations mehr, die Android-Warnung beim Start ist weg |
 
 Die Tests liefen über `adb shell input keyevent`. Mit den echten Tasten hat der User die
-Bedienung im Vordergrund grundsätzlich bestätigt. Der Bildschirm-aus-Betrieb ist mit den
-echten Tasten noch nicht bestätigt.
+Bedienung im Vordergrund und bei ausgeschaltetem Bildschirm bestätigt.
+
+Die Android-Displaysperre ist auf dem Gerät abgeschaltet (`adb shell locksettings set-disabled true`).
+Nach dem Einschalten des Bildschirms steht Rockbox direkt vorne.
 
 ## Tastenbelegung
 
@@ -90,8 +92,6 @@ Details stehen in `podbox/README.md`.
 
 ## Offene Punkte
 
-- [ ] Bildschirm-aus-Bedienung mit den echten Tasten bestätigen
-- [ ] Sperrbildschirm: optional die Displaysperre in Android auf „Keine“ stellen
 - [ ] Leeren Ordner `F:\!Code2\PodBox\rockbox` löschen (war beim Umzug gesperrt)
 - [ ] Modernisierung: arm64-v8a, aktuelles NDK (clang), Gradle statt `android.make`,
       `targetSdk` ≥ 31 (dann Scoped Storage / `MANAGE_EXTERNAL_STORAGE`, Foreground-Service-Typ,
