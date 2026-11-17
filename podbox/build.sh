@@ -3,10 +3,12 @@
 # Usage (from Windows Git-Bash): MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/f/!Code2/PodBox/podbox/build.sh" [zip]
 set -e
 export ANDROID_SDK_PATH=~/android/sdk
-export ANDROID_NDK_PATH=~/android/android-ndk-r16b
+# NDK r27 (clang). The old GCC toolchain still works with
+# ANDROID_NDK_PATH=~/android/android-ndk-r16b PODBOX_BUILD=~/podbox/build
+export ANDROID_NDK_PATH=${ANDROID_NDK_PATH:-~/android/sdk/ndk/27.2.12479018}
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$SRC/podbox.apk"
-BUILD=~/podbox/build
+BUILD=${PODBOX_BUILD:-~/podbox/build-clang}
 BT=$ANDROID_SDK_PATH/build-tools/30.0.3
 KS=~/podbox/podbox.keystore
 

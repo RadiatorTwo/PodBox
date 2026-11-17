@@ -674,9 +674,14 @@ androidcc () {
         exit
     fi
     make_toolchain="${ANDROID_NDK_PATH}/build/tools/make-standalone-toolchain.sh"
+    llvm_toolchain="${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64"
+    if [ ! -f "$make_toolchain" ] && [ -d "$llvm_toolchain" ]; then
+        # PodBox: NDK r19+ (clang only)
+        androidclangcc "$@"
+        return
+    fi
     if [ ! -f "$make_toolchain" ]; then
-        echo "ERROR: You need the Android NDK installed (r10e to r17). Please note that"
-        echo "versions newer than r17 are not supported because they do not contain GCC."
+        echo "ERROR: You need the Android NDK installed (r10e to r17, or r19+ for clang)."
         exit
     fi
 
@@ -733,6 +738,76 @@ androidcc () {
     echo "Using gccchoice ${gccchoice}"
     echo "Using gcctarget ${gcctarget}"
     PATH=$PATH:${pwd}/android-toolchain/bin
+    prefixtools $gcctarget
+}
+
+# PodBox: modern NDK (r19+), clang and LLVM binutils. Wrapper scripts with the
+# old GCC tool names go to android-toolchain/bin, so prefixtools and the
+# makefiles work unchanged.
+androidclangcc () {
+    android_clang="yes"
+    GCCOPTS=`echo $CCOPTS | sed -e s/-ffreestanding// -e s/-nostdlib//`
+    LDOPTS="$LDOPTS -ldl -llog -Wl,-soname,librockbox.so -shared"
+    SHARED_LDFLAGS="-shared"
+    SHARED_CFLAGS='-fPIC'
+    GLOBAL_LDOPTS="-Wl,-z,defs -Wl,-z,noexecstack -Wl,-z,text"
+    thread_support="HAVE_SIGALTSTACK_THREADS"
+    ANDROID_ARCH=$2 # for android.make too
+    ANDROID_PLATFORM_VERSION=$1
+    GCCOPTS="$GCCOPTS $3 -fPIC -fomit-frame-pointer"
+    gccchoice="clang"
+    endian="little"
+    case $ANDROID_ARCH in
+        armeabi)
+            clangtarget="armv7a-linux-androideabi"
+            gcctarget="arm-linux-androideabi-"
+            # clang defaults to Thumb-2, the inline asm is written for ARM
+            GCCOPTS="$GCCOPTS -marm"
+            ;;
+        aarch64)
+            clangtarget="aarch64-linux-android"
+            gcctarget="aarch64-linux-android-"
+            ;;
+        *)
+            echo "ERROR: androidclangcc(): Unknown target architecture"
+            exit
+            ;;
+    esac
+
+    tcbin="${pwd}/android-toolchain/bin"
+    rm -rf "${pwd}/android-toolchain"
+    mkdir -p "$tcbin"
+    wrap () { # wrap <name> <command...>
+        printf '#!/bin/sh
+exec %s "$@"
+' "$2" > "$tcbin/${gcctarget}$1"
+        chmod +x "$tcbin/${gcctarget}$1"
+    }
+    # drop -lgcc from link lines, clang links its compiler-rt builtins itself
+    cat > "$tcbin/${gcctarget}gcc" <<GCCEOF
+#!/bin/sh
+for a; do shift; [ "\$a" = "-lgcc" ] || set -- "\$@" "\$a"; done
+exec ${llvm_toolchain}/bin/${clangtarget}${ANDROID_PLATFORM_VERSION}-clang "\$@"
+GCCEOF
+    chmod +x "$tcbin/${gcctarget}gcc"
+    # like GCC's cpp: read stdin when no input file is given
+    cat > "$tcbin/${gcctarget}cpp" <<CPPEOF
+#!/bin/sh
+for a in "\$@"; do
+    case "\$a" in -*) ;; *) [ -f "\$a" ] && exec ${llvm_toolchain}/bin/${clangtarget}${ANDROID_PLATFORM_VERSION}-clang -E "\$@" ;; esac
+done
+exec ${llvm_toolchain}/bin/${clangtarget}${ANDROID_PLATFORM_VERSION}-clang -E "\$@" -
+CPPEOF
+    chmod +x "$tcbin/${gcctarget}cpp"
+    wrap as         "${llvm_toolchain}/bin/${clangtarget}${ANDROID_PLATFORM_VERSION}-clang -c"
+    wrap ld         "${llvm_toolchain}/bin/ld.lld"
+    wrap gcc-ar     "${llvm_toolchain}/bin/llvm-ar"
+    wrap gcc-ranlib "${llvm_toolchain}/bin/llvm-ranlib"
+    wrap objcopy    "${llvm_toolchain}/bin/llvm-objcopy"
+    wrap strip      "${llvm_toolchain}/bin/llvm-strip"
+
+    echo "Using clang toolchain ${clangtarget}${ANDROID_PLATFORM_VERSION}"
+    PATH=$PATH:$tcbin
     prefixtools $gcctarget
 }
 
@@ -4505,7 +4580,12 @@ else
   # Newer compilers may only return the major number, so we neen to fetch the
   # version using -dumpfullversion. MinGW compilers may return names like
   # "7.3-win32", so me must strip off the last part.
- gccver2=`$CC -dumpfullversion -dumpversion | cut -d "-" -f1`;
+ if [ "$android_clang" = "yes" ]; then
+   # clang has no -dumpfullversion
+   gccver2=`$CC -dumpversion`
+ else
+   gccver2=`$CC -dumpfullversion -dumpversion | cut -d "-" -f1`;
+ fi
  num1=`echo $gccver2 | cut -d . -f1`
  num2=`echo $gccver2 | cut -d . -f2`
  gccnum=`(expr $num1 "*" 100 + $num2) 2>/dev/null`
@@ -4531,7 +4611,9 @@ else
    GCCOPTS="$GCCOPTS -Wno-override-init"
  fi
 
- if test "$gccnum" -ge "700"; then
+ if [ "$android_clang" = "yes" ]; then
+   GCCOPTS="$GCCOPTS -Wno-implicit-fallthrough"
+ elif test "$gccnum" -ge "700"; then
    # gcc 7 spews a bunch of warnings by default
    GCCOPTS="$GCCOPTS -Wimplicit-fallthrough=0"
  fi
@@ -4615,8 +4697,8 @@ if [ -z "$arch" ]; then
         arch="arm"
         # cpp defines like "#define __ARM_ARCH 4" (where we want to extract the 4)
         arch_version="$(echo "$cpp_defines" | grep 'define __ARM_ARCH ' | sed -e 's,.* \([0-9]\).*,\1,')"
-        arch_profile="$(echo "$cpp_defines" | grep 'define __ARM_ARCH_PROFILE ' | sed -e 's/.* \([0-9]\{1,\}\)$/\1/')"
-	if test "$gccnum" -ge "800"; then
+        arch_profile="$(echo "$cpp_defines" | grep 'define __ARM_ARCH_PROFILE ' | sed -e 's/.* \([0-9]\{1,\}\)$/\1/' -e "s/.* 'A'$/65/" -e "s/.* 'M'$/77/" -e "s/.* 'R'$/82/")" # clang defines a char
+	if test "$gccnum" -ge "800" && [ "$android_clang" != "yes" ]; then
 	    # GCC8+ can natively emit unified asm syntax
 	    GCCOPTS="$GCCOPTS -masm-syntax-unified"
 	fi
@@ -4658,7 +4740,7 @@ if [ -z "$arch" ]; then
         arch="arm64"
         # cpp defines like "#define __ARM_ARCH 8" (where we want to extract the 8)
         arch_version="$(echo "$cpp_defines" | grep 'define __ARM_ARCH ' | sed -e 's,.* \([0-9]\).*,\1,')"
-        arch_profile="$(echo "$cpp_defines" | grep 'define __ARM_ARCH_PROFILE ' | sed -e 's/.* \([0-9]\{1,\}\)$/\1/')"
+        arch_profile="$(echo "$cpp_defines" | grep 'define __ARM_ARCH_PROFILE ' | sed -e 's/.* \([0-9]\{1,\}\)$/\1/' -e "s/.* 'A'$/65/" -e "s/.* 'M'$/77/" -e "s/.* 'R'$/82/")" # clang defines a char
         case "$arch_profile" in
             65) # Cortex-A
                 arch_profile=application

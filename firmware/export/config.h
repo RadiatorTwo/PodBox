@@ -1122,7 +1122,8 @@ Lyre prototype 1 */
  * Older versions of GCC emit assembly in divided syntax with no option
  * to enable unified syntax.
  */
-#if (__GNUC__ < 8) && (defined(CPU_ARM_CLASSIC)||defined(CPU_ARM_APPLICATION))
+/* clang reports __GNUC__ 4 but always uses unified syntax */
+#if (__GNUC__ < 8) && !defined(__clang__) && (defined(CPU_ARM_CLASSIC)||defined(CPU_ARM_APPLICATION))
 #define BEGIN_ARM_ASM_SYNTAX_UNIFIED ".syntax unified\n"
 #define END_ARM_ASM_SYNTAX_UNIFIED   ".syntax divided\n"
 #else
@@ -1131,7 +1132,7 @@ Lyre prototype 1 */
 #endif
 
 #if defined(CPU_ARM) && defined(__ASSEMBLER__)
-#if (__GNUC__ < 8)
+#if (__GNUC__ < 8) && !defined(__clang__)
 .syntax unified
 #endif
 /* ARMv4T doesn't switch the T bit when popping pc directly, we must use BX */
@@ -1151,7 +1152,7 @@ Lyre prototype 1 */
     ldr\cond pc, [sp], #4
 #endif
 .endm
-#if (__GNUC__ < 8)
+#if (__GNUC__ < 8) && !defined(__clang__)
 .syntax divided
 #endif
 #endif

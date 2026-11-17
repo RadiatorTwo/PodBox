@@ -90,6 +90,23 @@ void cRSID_emulateADSRs (cRSID_SIDinstance *SID, char cycles) {
 
 
 
+// PodBox: was a nested function inside cRSID_emulateWaves() (a GCC extension
+// clang does not support). The enclosing function's state is passed in now;
+// mask6581 replaces the WFarray!=PulseTriangle check (the table is defined
+// inside cRSID_emulateWaves).
+static inline unsigned short combinedWF (cRSID_SIDinstance *SID, const unsigned char *ChannelPtr,
+                                         unsigned char Channel, const unsigned char* WFarray,
+                                         unsigned short oscval, char mask6581) {
+  unsigned char Pitch;
+  unsigned short Filt;
+  if (SID->ChipModel==6581 && mask6581) oscval &= 0x7FFF;
+  Pitch = ChannelPtr[1] ? ChannelPtr[1] : 1; //avoid division by zero
+  Filt = 0x7777 + (0x8888/Pitch);
+  SID->PrevWavData[Channel] = ( WFarray[oscval>>4]*Filt + SID->PrevWavData[Channel]*(0xFFFF-Filt) ) >> 16;
+  return SID->PrevWavData[Channel] << 8;
+}
+
+
 int cRSID_emulateWaves (cRSID_SIDinstance *SID) {
 
  enum SIDspecs { CHANNELS=3+1, VOLUME_MAX=0xF, D418_DIGI_VOLUME=2 }; //digi-channel is counted too
@@ -109,15 +126,6 @@ int cRSID_emulateWaves (cRSID_SIDinstance *SID) {
  static int *PhaseAccuPtr;
 
 
- inline unsigned short combinedWF( const unsigned char* WFarray, unsigned short oscval) {
-  static unsigned char Pitch;
-  static unsigned short Filt;
-  if (SID->ChipModel==6581 && WFarray!=PulseTriangle) oscval &= 0x7FFF;
-  Pitch = ChannelPtr[1] ? ChannelPtr[1] : 1; //avoid division by zero
-  Filt = 0x7777 + (0x8888/Pitch);
-  SID->PrevWavData[Channel] = ( WFarray[oscval>>4]*Filt + SID->PrevWavData[Channel]*(0xFFFF-Filt) ) >> 16;
-  return SID->PrevWavData[Channel] << 8;
- }
 
 
  FilterInput = NonFilted = 0;
@@ -182,20 +190,20 @@ int cRSID_emulateWaves (cRSID_SIDinstance *SID) {
     WavGenOut = (Utmp >= PW || TestBit) ? 0xFFFF:0;
     if (WF & TRI_BITVAL) {
      if (WF & SAW_BITVAL) { //pulse+saw+triangle (waveform nearly identical to tri+saw)
-      if (WavGenOut) WavGenOut = combinedWF( PulseSawTriangle, Utmp);
+      if (WavGenOut) WavGenOut = combinedWF(SID, ChannelPtr, Channel, PulseSawTriangle, Utmp, 1);
      }
      else { //pulse+triangle
       Tmp = *PhaseAccuPtr ^ ( (WF&RING_BITVAL)? SID->RingSourceMSB : 0 );
-      if (WavGenOut) WavGenOut = combinedWF( PulseTriangle, Tmp >> 12);
+      if (WavGenOut) WavGenOut = combinedWF(SID, ChannelPtr, Channel, PulseTriangle, Tmp >> 12, 0);
     }}
     else if (WF & SAW_BITVAL) { //pulse+saw
-     if(WavGenOut) WavGenOut = combinedWF( PulseSawtooth, Utmp);
+     if(WavGenOut) WavGenOut = combinedWF(SID, ChannelPtr, Channel, PulseSawtooth, Utmp, 1);
    }}
   }
 
   else if (WF & SAW_BITVAL) { //sawtooth
    WavGenOut = *PhaseAccuPtr >> 12; //saw (this row would be enough for simple but aliased-at-high-pitch saw)
-   if (WF & TRI_BITVAL) WavGenOut = combinedWF( SawTriangle, WavGenOut); //saw+triangle
+   if (WF & TRI_BITVAL) WavGenOut = combinedWF(SID, ChannelPtr, Channel, SawTriangle, WavGenOut, 1); //saw+triangle
    else { //simple cleaned (bandlimited) saw
     Steepness = (PhaseAccuStep>>4)/288; if(Steepness==0) Steepness=1; //avoid division by zero in next steps
     WavGenOut += (WavGenOut * Steepness) >> 16; //1st half (rising edge) of asymmetric triangle-like saw waveform
