@@ -73,6 +73,16 @@ In den Einstellungen ändert das Rad den Wert.
   libraries“): `-fPIC` und `-Wl,-z,text` in `tools/configure`, PC-relative Sprungtabelle in
   `lib/rbcodec/dsp/dsp_arm.S`, Unwarminder/Backtrace für Android deaktiviert
   (`tools/root.make`, `config/android.h`).
+- `apps/SOURCES`: Android nutzt den nativen Rockbox-Ja/Nein-Dialog (`gui/yesno.c`) statt
+  eines Android-`AlertDialog`. Der Android-Dialog ließ sich nicht mit den Tasten bedienen
+  und hatte keinen Timeout. Rad-Button = Ja, jede andere Taste = Nein.
+- `apps/tagcache.c`: Datenbank
+  - Application-Builds haben weder Dircache noch RAM-Cache, deshalb wurde die Datenbank erst
+    beim nächsten Start übernommen. Jetzt holt sich `commit()` per `malloc` einen eigenen
+    Puffer und übernimmt sofort.
+  - `find_entry_disk()` löst den Pfad auf Android nicht mehr mit `realpath()` auf. `/sdcard`
+    ist ein Symlink, deshalb passte kein Eintrag. Folge war, dass „Jetzt aktualisieren“ jede
+    Datei doppelt aufnahm und die Laufzeitstatistiken ihre Einträge nie fanden.
 
 ## Build
 

@@ -191,7 +191,11 @@ static long tempbufidx;   /* Current location in buffer. */
 static size_t tempbuf_size; /* Buffer size (TEMPBUF_SIZE). */
 static long tempbuf_left; /* Buffer space left. */
 static long tempbuf_pos;
-#ifndef __PCTOOL__
+/* Hosted applications have neither dircache nor ramcache whose buffer the
+ * commit could borrow, so the temp buffer comes from the C heap there. */
+#if defined(__PCTOOL__) || (defined(APPLICATION) && !defined(PLUGIN))
+#define TAGCACHE_TEMPBUF_MALLOC
+#else
 static int tempbuf_handle;
 #endif
 
@@ -778,12 +782,12 @@ static void allocate_tempbuf(void)
     size_t size;
     tempbuf_size = 0;
 
-#ifdef __PCTOOL__
+#ifdef TAGCACHE_TEMPBUF_MALLOC
     size = 32*1024*1024;
     tempbuf = malloc(size);
     if (tempbuf)
         tempbuf_size = size;
-#else /* !__PCTOOL__ */
+#else /* !TAGCACHE_TEMPBUF_MALLOC */
     /* Need to pass dummy ops to prevent the buffer being moved
      * out from under us, since we yield during the tagcache commit. */
     tempbuf_handle = core_alloc_maximum(&size, &buflib_ops_locked);
@@ -792,7 +796,7 @@ static void allocate_tempbuf(void)
         tempbuf = core_get_data(tempbuf_handle);
         tempbuf_size = size;
     }
-#endif /* __PCTOOL__ */
+#endif /* TAGCACHE_TEMPBUF_MALLOC */
 
 }
 
@@ -801,7 +805,7 @@ static void free_tempbuf(void)
     if (tempbuf_size == 0)
         return ;
 
-#ifdef __PCTOOL__
+#ifdef TAGCACHE_TEMPBUF_MALLOC
     free(tempbuf);
 #else
     tempbuf_handle = core_free(tempbuf_handle);
@@ -883,7 +887,11 @@ static long find_entry_disk(const char *filename_raw, bool localfd)
 
     const char *filename = filename_raw;
 
-#ifdef APPLICATION
+/* PodBox: not on Android. There /sdcard itself is a symlink, so realpath()
+ * turns every lookup into /storage/emulated/0/... while the scan stores the
+ * unresolved /sdcard/... paths. Nothing would ever match: updates added
+ * every file again and runtime statistics never found their entry. */
+#if defined(APPLICATION) && !(CONFIG_PLATFORM & PLATFORM_ANDROID)
     char pathbuf[PATH_MAX]; /* Note: Don't use MAX_PATH here, it's too small */
     if (realpath(filename, pathbuf) == pathbuf)
         filename = pathbuf;
@@ -3382,6 +3390,9 @@ static bool commit(void)
 #ifdef HAVE_TC_RAMCACHE
     bool ramcache_buffer_stolen = false;
 #endif
+#if defined(APPLICATION) && !defined(PLUGIN)
+    bool tempbuf_allocated = false;
+#endif
     logf("committing tagcache");
 
     while (write_lock)
@@ -3467,6 +3478,13 @@ static bool commit(void)
     {
         tempbuf = rb->plugin_get_audio_buffer(&tempbuf_size);
         tempbuf_size &= ~0x03;
+    }
+#elif defined(APPLICATION)
+    /* Commit right away instead of waiting for the next start. */
+    if (tempbuf_size == 0)
+    {
+        allocate_tempbuf();
+        tempbuf_allocated = (tempbuf_size > 0);
     }
 #endif /*defined(PLUGIN)*/
 
@@ -3574,6 +3592,11 @@ commit_error:
 #endif /* HAVE_TC_RAMCACHE */
 
     read_lock--;
+
+#if defined(APPLICATION) && !defined(PLUGIN)
+    if (tempbuf_allocated)
+        free_tempbuf();
+#endif
 
 #ifdef HAVE_DIRCACHE
     /* Resume the dircache, if we stole the buffer. */

@@ -99,11 +99,11 @@ gui/splash.c
 gui/statusbar.c
 gui/statusbar-skinned.c
 #if (CONFIG_PLATFORM&PLATFORM_ANDROID)
-hosted/android/yesno.c
 hosted/android/notification.c
-#else
-gui/yesno.c
 #endif
+/* PodBox: native Rockbox yes/no screen on Android too, so it works with
+ * the hardware buttons and honours timeouts */
+gui/yesno.c
 gui/viewport.c
 
 gui/skin_engine/skin_backdrops.c
