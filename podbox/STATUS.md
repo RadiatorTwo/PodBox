@@ -74,7 +74,8 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     (Wiedergabezähler) fanden ihre Einträge nicht. Auf Android wird jetzt nicht mehr aufgelöst.
 12. **SD-Karte nicht in der Datenbank:** Gescannt wurde nur `/sdcard`. Jetzt werden alle
     Wechselkarten aus `/proc/self/mounts` mitgescannt (`apps/tagcache.c`). Das Startverzeichnis
-    des Browsers steht in `config.cfg` auf `/storage/FEF0-07FF/Music/` (nur auf dem Gerät gesetzt).
+    des Browsers steht in `config.cfg` auf `/storage/FEF0-07FF/Music/` (nur auf dem Gerät gesetzt,
+    nach einem Zurücksetzen der Einstellungen neu eintragen, ebenso `lang: /.rockbox/langs/deutsch.lng`).
     Fehlt die Karte, fällt Rockbox von selbst auf `/` zurück.
 13. **Zurück im Browser landete in `/`:** Die Elternordner `/storage` und `/storage/emulated`
     darf eine App nicht öffnen, Rockbox fiel dann auf die Android-Wurzel zurück. Jetzt gilt ein
@@ -115,10 +116,6 @@ Start, Menü, Ja/Nein-Dialog, Browser, FLAC-Wiedergabe mit Album-Art. Der alte W
 
 ## Offene Fragen an den User (Stand 17.11.)
 
-- `config.cfg` auf dem Gerät wurde um 16:33 neu geschrieben (noch vom GCC-Build `bd499d5037`).
-  Seitdem fehlen Sprache (jetzt Englisch), Startverzeichnis und Lautstärke, neu ist
-  "perceptual volume step count: 20". Unklar, ob der User Einstellungen zurückgesetzt hat.
-  Falls nicht: Ursache suchen. Sonst Deutsch + Startverzeichnis wieder setzen.
 - ANR bei Taste direkt nach Bildschirm-aus: Mit adb-injizierten Tasten ohne Displaysperre
   reproduzierbar ("Input dispatching timed out, no focused window", Rockbox wird beendet).
   Tritt auch mit dem alten GCC-Build auf. Vermutlich nur ein adb-Artefakt: `PhoneWindowManager`
