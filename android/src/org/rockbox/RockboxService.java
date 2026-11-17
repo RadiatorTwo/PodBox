@@ -193,6 +193,16 @@ public class RockboxService extends Service
                 synchronized (lock) {
                     Bundle bdata = new Bundle();
                     bdata.putBoolean("unzip", doExtract);
+                    /* PodBox: tell the native code where the codecs really
+                     * are. The legacy /data/data/org.rockbox/lib link it was
+                     * built with is not updated when the ABI changes (it
+                     * still pointed to lib/arm after installing arm64). */
+                    try {
+                        android.system.Os.setenv("ROCKBOX_BINDIR",
+                                getApplicationInfo().nativeLibraryDir, true);
+                    } catch (android.system.ErrnoException e) {
+                        Logger.e("setenv ROCKBOX_BINDIR failed: " + e);
+                    }
                     System.loadLibrary("rockbox");
                     putResult(RESULT_LIB_LOADED, bdata);
                     lock.notify();

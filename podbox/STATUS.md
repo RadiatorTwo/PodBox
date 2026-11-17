@@ -82,8 +82,9 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
 ## Build-Umgebung
 
 - WSL2 `archlinux` (Standardshell fish, deshalb immer `wsl -d archlinux -e bash ...`)
-- NDK r16b (GCC 4.9, armeabi-v7a), SDK unter `~/android/sdk`, build-tools 30.0.3, platform 21
-- Build-Verzeichnis `~/podbox/build`, Keystore `~/podbox/podbox.keystore`
+- NDK r27 (clang 18) unter `~/android/sdk/ndk/27.2.12479018`, arm64-v8a; SDK unter
+  `~/android/sdk`, build-tools 30.0.3, platform 21. 32 Bit und NDK r16b gehen weiter, siehe `build.sh`
+- Build-Verzeichnis `~/podbox/build-arm64`, Keystore `~/podbox/podbox.keystore`
 - Bauen: `MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/f/!Code2/PodBox/podbox/build.sh" [zip]`
 - Installieren: `adb install -r podbox.apk`
 - Git: `core.eol=lf` ist repo-lokal Pflicht. Remotes: `origin` = GitHub, `upstream` = Rockbox
@@ -93,7 +94,8 @@ Details stehen in `podbox/README.md`.
 ## Offene Punkte
 
 - [ ] Leeren Ordner `F:\!Code2\PodBox\rockbox` löschen (war beim Umzug gesperrt)
-- [ ] Modernisierung: arm64-v8a, aktuelles NDK (clang), Gradle statt `android.make`,
+- [x] Modernisierung Teil 1+2: NDK r27 (clang), arm64-v8a
+- [ ] Modernisierung: Gradle statt `android.make`,
       `targetSdk` ≥ 31 (dann Scoped Storage / `MANAGE_EXTERNAL_STORAGE`, Foreground-Service-Typ,
       Notification-Channel nötig)
 - [ ] Wiedergabezähler/Statistiken mit der Datenbank testen (sollten nach Fix 11 gehen)

@@ -203,6 +203,21 @@ const char * handle_special_dirs(const char *dir, unsigned flags,
                                  char *buf, const size_t bufsize)
 {
     (void) flags; (void) buf; (void) bufsize;
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+    /* PodBox: codecs live in the app's real native library directory
+     * (set by RockboxService), not behind the legacy lib link */
+#define BINARY_PATH_LEN (sizeof(ROCKBOX_BINARY_PATH)-1)
+    if (!strncmp(ROCKBOX_BINARY_PATH, dir, BINARY_PATH_LEN) &&
+        (dir[BINARY_PATH_LEN] == PATH_SEPCH || dir[BINARY_PATH_LEN] == '\0'))
+    {
+        const char *bindir = getenv("ROCKBOX_BINDIR");
+        if (bindir && *bindir)
+        {
+            snprintf(buf, bufsize, "%s%s", bindir, dir + BINARY_PATH_LEN);
+            return buf;
+        }
+    }
+#endif
 #ifdef HAVE_SPECIAL_DIRS
 #define HOME_DIR_LEN (sizeof(HOME_DIR)-1)
     /* This replaces HOME_DIR (ie '<HOME'>') with runtime rbhome */

@@ -94,6 +94,13 @@ In den Einstellungen ändert das Rad den Wert.
 - `apps/tree.c`: Kann der Browser den Elternordner nicht öffnen (`/storage`,
   `/storage/emulated`), führt Zurück ins Hauptmenü. Vorher fiel Rockbox auf die
   Android-Wurzel `/` zurück.
+- NDK r27 (clang) statt r16b (GCC 4.9): `tools/configure` legt Wrapper mit den alten GCC-Namen
+  um clang/ld.lld/llvm-* an (`android-toolchain/bin`). Dazu kleine Anpassungen für clangs
+  Assembler (`config.h`, `functions.make`, `asl` → `lsl` in ARMv6-Asm) und cRSID ohne
+  verschachtelte Funktionen.
+- arm64-v8a (`ANDROID_ABI=arm64-v8a`, Standard in `build.sh`). Die Codecs werden aus
+  `nativeLibraryDir` geladen (`RockboxService` setzt `ROCKBOX_BINDIR`, `filesystem-app.c`),
+  der alte Link `/data/data/org.rockbox/lib` zeigte nach dem Wechsel noch auf `lib/arm`.
 
 ## Build
 
@@ -104,13 +111,12 @@ Einmalig einrichten:
 ```bash
 pacman -S --needed base-devel wget unzip zip jdk17-openjdk python
 mkdir -p ~/android && cd ~/android
-wget https://dl.google.com/android/repository/android-ndk-r16b-linux-x86_64.zip
 wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-unzip -q android-ndk-r16b-linux-x86_64.zip
 mkdir -p sdk/cmdline-tools && unzip -q commandlinetools-linux-11076708_latest.zip -d sdk/cmdline-tools
 mv sdk/cmdline-tools/cmdline-tools sdk/cmdline-tools/latest
 yes | sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-21" "build-tools;30.0.3" "platform-tools"
+sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-21" "build-tools;30.0.3" "platform-tools" \
+    "ndk;27.2.12479018"
 ```
 
 Bauen (aus Windows Git-Bash):
@@ -121,7 +127,10 @@ MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/f/!Code2/PodBox/podbox/build.s
 adb install -r podbox.apk
 ```
 
-Das Build-Verzeichnis liegt in der WSL unter `~/podbox/build`, die APK landet im Repo-Root.
+Gebaut wird mit NDK r27 (clang) für arm64-v8a, das Build-Verzeichnis liegt in der WSL unter
+`~/podbox/build-arm64`, die APK landet im Repo-Root. Andere Varianten über Umgebungsvariablen
+(siehe Kopf von `build.sh`): `ANDROID_ABI=armeabi` für 32 Bit, NDK r16b (GCC 4.9) über
+`ANDROID_NDK_PATH`.
 Das Skript signiert die APK mit `apksigner` neu, weil Android 12 die alte MD5/SHA1-Signatur
 aus `android.make` ablehnt.
 
@@ -137,4 +146,4 @@ git merge upstream/master
 
 ## TODO
 
-- Modernisierung: arm64, aktuelles NDK (clang), Gradle, targetSdk ≥ 31
+- Modernisierung: Gradle, targetSdk ≥ 31
