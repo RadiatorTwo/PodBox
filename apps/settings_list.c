@@ -371,6 +371,9 @@ static const char graphic_numeric[] = "graphic,numeric";
   #define DEFAULT_FONT_HEIGHT 18
 #elif LCD_HEIGHT <= 400
   #define DEFAULT_FONT_HEIGHT 16
+#elif (CONFIG_PLATFORM & PLATFORM_ANDROID) && LCD_WIDTH == 480 && LCD_HEIGHT == 640
+  /* PodBox (Surfans F20 Pro+), matches cabbiev2.480x640 theme */
+  #define DEFAULT_FONT_HEIGHT 27
 #elif LCD_HEIGHT <= 480 && LCD_WIDTH < 800
   #define DEFAULT_FONT_HEIGHT 27
 #else
@@ -1362,7 +1365,14 @@ const struct settings_list settings[] = {
                 NULL, NULL, NULL),
 #ifdef HAVE_TOUCHSCREEN
     TABLE_SETTING(F_THEMESETTING|F_ALLOW_ARBITRARY_VALS, list_line_padding, LANG_LIST_LINE_PADDING,
-                  -1, "list padding", "auto,off", UNIT_PIXEL, list_pad_formatter,
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+                  /* PodBox: operated by hardware keys, no need for
+                   * finger-sized list lines */
+                  6,
+#else
+                  -1,
+#endif
+                  "list padding", "auto,off", UNIT_PIXEL, list_pad_formatter,
                   list_pad_getlang, NULL, 16,
                   -1,0,2,4,6,8,10,12,16,20,24,28,32,38,44,50),
 #endif

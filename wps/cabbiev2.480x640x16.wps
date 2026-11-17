@@ -1,0 +1,83 @@
+# Cabbie v2.0 - 480x640 (PodBox / Surfans F20 Pro+)
+# (C) 2007-2012 The Authors (see /rockbox/wps/AUTHORS)
+# Derived from "cabbie" (C) Yohann Misquitta
+# Layout derived from cabbiev2.480x800x16.wps, adapted for hardware
+# keys (no touch regions).
+%wd
+%X(backdrop-480x640x16.bmp)
+
+%xl(C,volume-480x800x16.bmp,30,0,10)
+%xl(D,shuffle-480x800x16.bmp,150,10)
+%xl(E,repeat-480x800x16.bmp,270,0,4)
+%xl(shuffleoff,shuffleoff-480x800x16.bmp,146,10)
+%xl(repeatoff,repeatoff-480x800x16.bmp,266,0)
+%xl(F,playmode-480x800x16.bmp,370,0,5)
+%xl(vol,volumebar-480x800x16.bmp,0,0)
+%xl(volbd,volumebar-backdrop-480x800x16.bmp,0,0)
+
+%Cl(0,0,230,230,c,c)
+# show the volume slider for 2s after the volume was changed (wheel)
+%?mv(2.0)<%Vd(vol)|%?C<%Vd(c)%Vd(d)|%Vd(a)>>
+
+#
+# Header
+#
+%Fl(2,27-Adobe-Helvetica-Bold.fnt)
+%V(25,22,430,27,2)%Vf(0F0B00)
+%acNOW PLAYING
+
+#
+# track & next track info - no album art
+#
+%Vl(a,0,90,-,360,-)
+%s%ac%?id<%id|%?d(1)<%d(1)|%(root%)>>
+%s%ac%?it<%it|%fn>
+%s%ac%?ia<%ia|%?iA<%iA|%?d(2)<%d(2)|%(root%)>>>
+%ac%?iy<%iy|>
+%ac%?ig<%ig|>
+%ac%?fv<%(vbr%) |>%fb kbit/s %fc
+%ac
+%ac%Sx(Next Track:)
+%s%ac%?It<%It|%Fn>
+%s%ac%?Ia<%Ia|%?IA<%IA|%?D(2)<%D(2)|%(root%)>>>
+
+#
+# album art
+#
+%Vl(c,125,62,230,230,-)
+%Cd
+
+# current + next track info - with album art
+%Vl(d,0,300,-,165,-)
+%s%ac%?it<%it|%fn>
+%s%ac%?ia<%ia|%?iA<%iA|%?d(2)<%d(2)|%(root%)>>>
+%s%ac%?id<%id|%?d(1)<%d(1)|%(root%)>>
+%ac
+%s%ac%Sx(Next:) %?It<%It|%Fn>
+
+#
+# volume slider
+#
+%Vl(vol,14,175,452,205,-)
+%pv(0,0,452,205,image,vol,backdrop,volbd)
+
+#
+# progressbar
+#
+%V(0,470,-,45,-)
+%pb(25,11,430,-,pb-480x800x16.bmp)
+
+#
+# playtime
+#
+%V(25,515,430,30,-)
+%pc%ac%?Sr<%pe %Sx(of) %pp|%pp %Sx(of) %pe>%ar%pr
+
+#
+# status icons: volume, shuffle, repeat, playmode
+#
+%V(0,555,-,-,-)
+%?pv<%xd(Ca)|%xd(Cb)|%xd(Cc)|%xd(Cd)|%xd(Ce)|%xd(Cf)|%xd(Cg)|%xd(Ch)|%xd(Ci)|%xd(Cj)>
+%?ps<%xd(D)|%xd(shuffleoff)>
+%?mm<%xd(repeatoff)|%xd(E, %mm, -1)>
+%?Tp<%?mp<%xd(F, 1)|%xd(F, 3)|%xd(F, 2)|%xd(F, 4)|%xd(F, 5)||||>|%xd(F, %mp)>

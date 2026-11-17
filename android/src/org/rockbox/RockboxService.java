@@ -34,6 +34,7 @@ import org.rockbox.Helper.RunForegroundManager;
 import android.app.Activity;
 import android.app.Service;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.IBinder;
@@ -166,13 +167,23 @@ public class RockboxService extends Service
                  * because there's no other way to ship files and have access
                  * to them from native code
                  */
-                File libMisc = new File("/data/data/org.rockbox/lib/libmisc.so");
+                File libMisc = new File(getApplicationInfo().nativeLibraryDir, "libmisc.so");
                 /* use arbitrary file to determine whether extracting is needed */
                 File arbitraryFile = new File(rockboxCreditsPath, "credits.rock");
                 File rockboxInfoFile = new File(rockboxSdDirPath, "rockbox-info.txt");
+                /* PodBox: libs extracted from the APK carry a fixed 1980
+                 * timestamp, so compare against the package update time */
+                long updateTime = 0;
+                try {
+                    updateTime = getPackageManager()
+                        .getPackageInfo(getPackageName(), 0).lastUpdateTime;
+                } catch (Exception ex) { }
+                final SharedPreferences prefs =
+                    getSharedPreferences("podbox", MODE_PRIVATE);
+                final long extractedTime = prefs.getLong("extracted", -1);
                 /* unzip newer or doesnt exist */
                 boolean doExtract = !arbitraryFile.exists()
-                        || (libMisc.lastModified() > arbitraryFile.lastModified());
+                        || extractedTime != updateTime;
 
                 /* load library before unzipping which may take a while
                  * but at least tell if unzipping is going to be done before*/
@@ -245,6 +256,7 @@ public class RockboxService extends Service
                            putResult(RESULT_LIB_LOAD_PROGRESS, progressData);
                         }
                         arbitraryFile.setLastModified(libMisc.lastModified());
+                        prefs.edit().putLong("extracted", updateTime).commit();
                     } catch(Exception e) {
                         Logger.d("Exception when unzipping", e);
                         Bundle bundle = new Bundle();

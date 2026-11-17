@@ -46,6 +46,14 @@ In den Einstellungen ändert das Rad den Wert.
 - `firmware/target/hosted/android/`: Hardware-Tasten und Drehrad, gemerkte Tastendrücke.
 - `apps/keymaps/keymap-android.c`: Keymap für Drehrad und Tasten.
 - `android/src/org/rockbox/RockboxFramebuffer.java`: kurz/lang für Play/Pause.
+- `RockboxActivity.java`: Vollbild (Status- und Navigationsleiste ausgeblendet, immersive sticky).
+- `RockboxService.java`: Themes/Fonts werden nach jedem APK-Update neu entpackt. Bisher wurde
+  der 1980-Zeitstempel der Libs verglichen, deshalb kamen Updates nie an.
+- `apps/settings_list.c`: Android-Standards für 480x640: Schrift 27-Adobe-Helvetica,
+  Zeilenabstand 6 px statt des Touch-Abstands aus der DPI.
+- `wps/WPSLIST`, `wps/cabbiev2.480x640x16.wps`, `backdrops/cabbiev2.480x640x16.bmp`,
+  `wps/cabbiev2/backdrop-480x640x16.bmp`: cabbiev2-Theme für 480x640, ohne Touch-Regionen
+  (verwendet die 480x800-Grafiken).
 
 ## Build
 
@@ -89,7 +97,5 @@ git merge upstream/master
 
 ## TODO
 
-- Fullscreen (Navigationsleiste ausblenden), größere Schrift, Listenhöhe ohne Touch-Modus
-- Theme für 480x640
 - Bedienung bei ausgeschaltetem Bildschirm (MediaSession / VolumeProvider)
 - Modernisierung: arm64, aktuelles NDK (clang), Gradle, targetSdk ≥ 31
