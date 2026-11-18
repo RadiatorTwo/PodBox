@@ -59,8 +59,10 @@ typedef int16_t pcmbuf_sample_t;
 
 /* This is the target fill size of chunks on the pcm buffer
    Can be any number of samples but power of two sizes make for faster and
-   smaller math - must be < 65536 bytes */
-#define PCMBUF_CHUNK_SIZE    8192u
+   smaller math - must be < 65536 bytes.
+   PodBox: 2048 frames in both formats (the fft plugin needs that many in
+   one piece) */
+#define PCMBUF_CHUNK_SIZE    (2048u * PCMBUF_SAMPLE_SIZE)
 
 /* Small guard buf to give decent space near end */
 #define PCMBUF_GUARD_SIZE    (PCMBUF_CHUNK_SIZE / 8)

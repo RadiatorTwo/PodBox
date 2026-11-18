@@ -758,8 +758,10 @@ static inline bool fft_init_fft_lib(void)
 static inline bool fft_get_fft(void)
 {
     int count;
-    const int16_t *value =
+    const void *buf =
         rb->mixer_channel_get_buffer(PCM_MIXER_CHAN_PLAYBACK, &count);
+    /* PodBox: int32 frames (full scale 2^31) on the 32-bit playback path */
+    bool s32 = rb->mixer_channel_get_frame_bytes(PCM_MIXER_CHAN_PLAYBACK) == 8;
     /* This block can introduce discontinuities in our data. Meaning, the
      * FFT will not be done a continuous segment of the signal. Which can
      * be bad. Or not.
@@ -778,12 +780,26 @@ static inline bool fft_get_fft(void)
 
     int fft_idx = 0; /* offset in 'input' */
 
-    do
+    if (s32)
     {
-        kiss_fft_scalar left = *value++;
-        kiss_fft_scalar right = *value++;
-        input[fft_idx].r = (left + right) >> 1; /* to mono */
-    } while (fft_idx++, --count > 0);
+        const int32_t *value = buf;
+        do
+        {
+            kiss_fft_scalar left = *value++ >> 16;
+            kiss_fft_scalar right = *value++ >> 16;
+            input[fft_idx].r = (left + right) >> 1; /* to mono */
+        } while (fft_idx++, --count > 0);
+    }
+    else
+    {
+        const int16_t *value = buf;
+        do
+        {
+            kiss_fft_scalar left = *value++;
+            kiss_fft_scalar right = *value++;
+            input[fft_idx].r = (left + right) >> 1; /* to mono */
+        } while (fft_idx++, --count > 0);
+    }
 
     apply_window_func(fft.window_func);
 

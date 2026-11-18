@@ -134,6 +134,10 @@ size_t mixer_channel_get_bytes_waiting(enum pcm_mixer_channel channel);
 /* Return pointer to channel's playing audio data and the size remaining */
 const void * mixer_channel_get_buffer(enum pcm_mixer_channel channel,
                                       int *count);
+/* PodBox: frame size of the channel's data: 4 = int16 stereo, 8 = int32
+   stereo (full scale 2^31). Buffers from mixer_channel_get_buffer() and
+   the buffer hook have this format; the count is in frames. */
+unsigned int mixer_channel_get_frame_bytes(enum pcm_mixer_channel channel);
 
 /* Calculate peak values for channel */
 void mixer_channel_calculate_peaks(enum pcm_mixer_channel channel,

@@ -654,6 +654,12 @@ const void * mixer_channel_get_buffer(enum pcm_mixer_channel channel, int *count
     return NULL;
 }
 
+/* Return the frame size of the channel's data (4 or 8 bytes) */
+unsigned int mixer_channel_get_frame_bytes(enum pcm_mixer_channel channel)
+{
+    return channels[channel].frame_bytes ?: 4;
+}
+
 /* Calculate peak values for channel */
 void mixer_channel_calculate_peaks(enum pcm_mixer_channel channel,
                                    struct pcm_peaks *peaks)
