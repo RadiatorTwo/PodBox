@@ -304,7 +304,7 @@ Vom User zu testen (per adb nicht möglich):
 1. Lautsprecher mit AAudio (Kopfhörer stecken seit 18.11. morgens)
 2. Kopfhörer während der Wiedergabe ausstecken (Ausgang sollte neu öffnen)
 3. ANR: Bildschirm aus, sofort "unten", nach 10 s an (siehe unten)
-4. Wärme im Alltag nach Abkühlen messen
+4. ~~Wärme im Alltag~~: laut User (18.11.) wird das Gerät "nicht mehr ansatzweise so warm"
 5. Anhören: 24-Bit-Dateien, MP3, Crossfade
 
 Vom User zu entscheiden: derzeit nichts offen.
