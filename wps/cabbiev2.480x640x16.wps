@@ -3,6 +3,8 @@
 # Derived from "cabbie" (C) Yohann Misquitta
 # Layout derived from cabbiev2.480x800x16.wps, adapted for hardware
 # keys (no touch regions).
+# No %s (scrolling) lines: long texts are cut off. Scrolling redrew the
+# screen 12.5 times per second, which cost surfaceflinger 8-9% of a core.
 %wd
 %X(backdrop-480x640x16.bmp)
 
@@ -31,16 +33,16 @@
 # track & next track info - no album art
 #
 %Vl(a,0,90,-,360,-)
-%s%ac%?id<%id|%?d(1)<%d(1)|%(root%)>>
-%s%ac%?it<%it|%fn>
-%s%ac%?ia<%ia|%?iA<%iA|%?d(2)<%d(2)|%(root%)>>>
+%ac%?id<%id|%?d(1)<%d(1)|%(root%)>>
+%ac%?it<%it|%fn>
+%ac%?ia<%ia|%?iA<%iA|%?d(2)<%d(2)|%(root%)>>>
 %ac%?iy<%iy|>
 %ac%?ig<%ig|>
 %ac%?fv<%(vbr%) |>%fb kbit/s %fc
 %ac
 %ac%Sx(Next Track:)
-%s%ac%?It<%It|%Fn>
-%s%ac%?Ia<%Ia|%?IA<%IA|%?D(2)<%D(2)|%(root%)>>>
+%ac%?It<%It|%Fn>
+%ac%?Ia<%Ia|%?IA<%IA|%?D(2)<%D(2)|%(root%)>>>
 
 #
 # album art
@@ -51,11 +53,11 @@
 # current + next track info - with album art
 # (title/artist/album in the UI font, next track smaller below)
 %Vl(d,0,298,-,114,-)
-%s%ac%?it<%it|%fn>
-%s%ac%?ia<%ia|%?iA<%iA|%?d(2)<%d(2)|%(root%)>>>
-%s%ac%?id<%id|%?d(1)<%d(1)|%(root%)>>
+%ac%?it<%it|%fn>
+%ac%?ia<%ia|%?iA<%iA|%?d(2)<%d(2)|%(root%)>>>
+%ac%?id<%id|%?d(1)<%d(1)|%(root%)>>
 %Vl(d,0,424,-,32,3)
-%s%ac%Sx(Next:) %?It<%It|%Fn>
+%ac%Sx(Next:) %?It<%It|%Fn>
 
 #
 # volume slider

@@ -263,11 +263,10 @@ Rockbox kostet ohnehin nur wenige Prozent.
   Lautsprecher: `primary`/`deep_buffer`, 44,1/48 kHz, Mixer läuft mit 48 kHz.
 - Rockbox: DSP, pcmbuf und Mixer mit 32 Bit (Fix 23), Originalrate bis 192 kHz (Fix 18).
   Offen: DSD und Raten über 192 kHz (Hardware-Grenze, Fix 21).
-- Bildschirm an (Stand 18.11.): Der WPS zeichnet wegen der scrollenden Albumzeile 12,5-mal pro
-  Sekunde neu. Seit Fix 25 kostet das Zeichnen PodBox nur noch ca. 2 % eines Kerns (Bildschirm
-  aus: Rockbox-Thread 5 %, Audio-Thread 0,5 %). surfaceflinger braucht 8–9 % (die Ebene läuft
-  schon als Hardware-Overlay `DEVICE`, das ist der Grundpreis pro Bild); weniger geht nur mit
-  weniger Bildern pro Sekunde (langsameres Scrollen / kein Scrollen im WPS, offene Frage).
+- Bildschirm an (Stand 18.11.): Der WPS hat wegen der scrollenden Albumzeile 12,5-mal pro
+  Sekunde neu gezeichnet (PodBox 10–11,5 %, surfaceflinger 8–9 % eines Kerns). Jetzt scrollt im
+  WPS nichts mehr (kein `%s` in `wps/cabbiev2.480x640x16.wps`, lange Texte werden abgeschnitten),
+  es zeichnet nur noch die Spielzeit einmal pro Sekunde: PodBox 4,7 %, surfaceflinger 4,9 %.
 - Mögliche nächste Schritte für Effizienz/Klang (noch nicht entschieden):
   1. ~~Kopfhörer: Originalrate bis 192 kHz~~ erledigt (Fix 18), ~~24-Bit-Ausgabe~~ erledigt
      (Fix 23).
@@ -291,9 +290,6 @@ Vom User zu testen (per adb nicht möglich):
 5. Anhören: 24-Bit-Dateien, MP3, Crossfade
 
 Vom User zu entscheiden:
-- WPS-Scrollen: 12,5 Bilder/s durch die Albumzeile, surfaceflinger 8–9 % eines Kerns. Optionen:
-  langsamer scrollen, im WPS nicht scrollen, kürzeres Bildschirm-Timeout im WPS.
-- Testordner löschen (`/sdcard/Music/PodBoxTest`, SD `Music/0_PodBoxTest`), wenn fertig getestet.
 - Optional: Rockbox als Launcher.
 
 Test-Hilfen: `/data/local/tmp/cpu.sh <s>` (CPU von PodBox/surfaceflinger/audioserver, Werte x10
@@ -334,10 +330,8 @@ per adb nicht auslösen.
 
 ## Offene Punkte
 
-- [ ] Testordner `/sdcard/Music/PodBoxTest` (MP3/FLAC/AAC/OGG/Opus) liegt wieder auf dem Gerät,
-      nach den Tests löschen und Datenbank aktualisieren. Dazu auf der SD-Karte
-      `/storage/FEF0-07FF/Music/0_PodBoxTest` (16-Bit-FLAC, 24-Bit/96-kHz-Sinus-WAV, Fix 23;
-      1-kHz- und 120-kHz-Ton mit 352,8 kHz, Fix 24)
+- [x] Testordner `/sdcard/Music/PodBoxTest` und SD `Music/0_PodBoxTest` gelöscht (18.11.),
+      Datenbank aktualisiert (185 Titel).
 - [x] Wiedergabezähler/Statistiken: gehen (18.11. getestet, Titel aus dem Datei-Browser landet nach
       > 15 s unter "Kürzlich gespielt", übersteht Neustart). Voraussetzung: "Laufzeitdaten sammeln"
       (`gather runtime data: on`, Rockbox-Standard ist aus), auf dem Gerät jetzt eingeschaltet.
