@@ -17234,3 +17234,31 @@
     recording_remote: "Skin für Remote Aufnahmebildschirm"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_PODBOX_OTHER_APPS
+  desc: PodBox: main menu, opens the other Android home screen
+  user: core
+  <source>
+    *: "Other Apps"
+  </source>
+  <dest>
+    *: "Andere Apps"
+  </dest>
+  <voice>
+    *: "Andere Apps"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_PODBOX_NO_OTHER_LAUNCHER
+  desc: PodBox: splash when no other Android home screen exists
+  user: core
+  <source>
+    *: "No other home screen found"
+  </source>
+  <dest>
+    *: "Kein anderer Startbildschirm gefunden"
+  </dest>
+  <voice>
+    *: "Kein anderer Startbildschirm gefunden"
+  </voice>
+</phrase>

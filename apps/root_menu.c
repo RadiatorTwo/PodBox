@@ -73,6 +73,9 @@
 #include "language.h"
 #include "plugin.h"
 #include "disk.h"
+#if (CONFIG_PLATFORM&PLATFORM_ANDROID)
+#include "launcher.h"
+#endif
 
 struct root_items {
     int (*function)(void* param);
@@ -542,6 +545,11 @@ MENUITEM_RETURNVALUE(playlists, ID2P(LANG_PLAYLISTS), GO_TO_PLAYLISTS_SCREEN,
                      NULL, Icon_Playlist);
 MENUITEM_RETURNVALUE(system_menu_, ID2P(LANG_SYSTEM), GO_TO_SYSTEM_SCREEN,
                      NULL, Icon_System_menu);
+#if (CONFIG_PLATFORM&PLATFORM_ANDROID)
+/* PodBox: open the other Android home screen (PodBox can be the launcher) */
+MENUITEM_FUNCTION(other_apps, 0, ID2P(LANG_PODBOX_OTHER_APPS),
+                  android_open_other_launcher, NULL, Icon_Menu_functioncall);
+#endif
 
 struct menu_item_ex root_menu_;
 static struct menu_callback_with_desc root_menu_desc = {
@@ -566,6 +574,9 @@ static struct menu_table menu_table[] = {
     { "plugins", &rocks_browser },
     { "system_menu", &system_menu_ },
     { "shortcuts", &shortcut_menu },
+#if (CONFIG_PLATFORM&PLATFORM_ANDROID)
+    { "other_apps", &other_apps },
+#endif
 };
 #define MAX_MENU_ITEMS (sizeof(menu_table) / sizeof(struct menu_table))
 static struct menu_item_ex *root_menu__[MAX_MENU_ITEMS];

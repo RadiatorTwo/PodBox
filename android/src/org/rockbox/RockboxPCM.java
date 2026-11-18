@@ -152,10 +152,11 @@ public class RockboxPCM
         widgetUpdate.setPackage(service.getPackageName());
         widgetUpdate.putExtra("state", playing ? "play" : "stop");
         service.sendBroadcast(widgetUpdate);
+        /* PodBox: stay in the foreground while paused too (see
+         * RockboxService.doStart), otherwise Android stops the service about
+         * a minute after the screen goes off and PodBox exits */
         if (playing)
             service.startForeground();
-        else
-            service.stopForeground();
     }
 
     /* fine attenuation applied by the native output, 1.0 = untouched */

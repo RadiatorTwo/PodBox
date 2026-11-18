@@ -14,6 +14,12 @@
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />
 			</intent-filter>
+			<!-- PodBox: can be selected as the Android home screen -->
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.HOME" />
+				<category android:name="android.intent.category.DEFAULT" />
+			</intent-filter>
 		</activity>		
 
 		<service android:name=".RockboxService"
@@ -92,4 +98,12 @@
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 	<uses-permission android:name="android.permission.READ_PHONE_STATE"></uses-permission>
+
+	<!-- PodBox: "Other apps" in the main menu looks up the other home screens -->
+	<queries>
+		<intent>
+			<action android:name="android.intent.action.MAIN" />
+			<category android:name="android.intent.category.HOME" />
+		</intent>
+	</queries>
 </manifest> 

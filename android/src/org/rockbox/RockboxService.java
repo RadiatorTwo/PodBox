@@ -74,6 +74,7 @@ public class RockboxService extends Service
         mMediaButtonReceiver = new MediaButtonReceiver(this);
         mMediaSession = new PodBoxMediaSession(this);
         mFgRunner = new RunForegroundManager(this);
+        rememberOtherLauncher();
     }
 
     public static RockboxService getInstance()
@@ -136,6 +137,13 @@ public class RockboxService extends Service
         mMediaButtonReceiver.register();
         putResult(RESULT_SERVICE_RUNNING);
 
+        /* PodBox: run as foreground service for as long as Rockbox runs, not
+         * only while playing. A paused PodBox with the screen off otherwise
+         * counts as idle background app, Android stops the service after
+         * about a minute and onDestroy() ends the process. Fails (caught)
+         * when started from the background; the activity retries on resume. */
+        mFgRunner.startForeground();
+
         rockbox_running = true;
     }
 
@@ -150,7 +158,11 @@ public class RockboxService extends Service
         if (intent == null)
             intent = new Intent("org.rockbox.ServiceRestarted");
         doStart(intent);
-        return START_STICKY;
+        /* PodBox: no sticky restart. A restarted service without UI is
+         * stopped again right away for being idle in the background, and
+         * its System.exit() then also kills the activity Android restarts
+         * for the home screen. The activity starts Rockbox again instead. */
+        return START_NOT_STICKY;
     }
 
     private void startService()
@@ -343,6 +355,81 @@ public class RockboxService extends Service
     void stopForeground()
     {
         mFgRunner.stopForeground();
+    }
+
+    /* PodBox: PodBox can be the home screen. This opens another home screen
+     * (normally the manufacturer's launcher) to reach other apps; the home
+     * button leads back to PodBox. Called from the Rockbox thread (main menu).
+     * Returns false if there is no other home screen. */
+    private static final String PREF_OTHER_HOME = "podbox_other_home";
+    /* used if the previous home screen is unknown (Surfans F20 Pro+ default) */
+    private static final String PREFERRED_OTHER_HOME = "com.blueshark.sidebarlauncher";
+
+    /* Remember the default home screen while it is not PodBox, so "Other apps"
+     * opens the one the user had before choosing PodBox. */
+    private void rememberOtherLauncher()
+    {
+        try {
+            Intent home = new Intent(Intent.ACTION_MAIN);
+            home.addCategory(Intent.CATEGORY_HOME);
+            android.content.pm.ResolveInfo def = getPackageManager()
+                .resolveActivity(home, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+            if (def == null || def.activityInfo == null)
+                return;
+            String pkg = def.activityInfo.packageName;
+            /* "android" = no default chosen yet (chooser), skip ourselves too */
+            if ("android".equals(pkg) || getPackageName().equals(pkg)
+                    || "com.android.settings".equals(pkg))
+                return;
+            getSharedPreferences("podbox", MODE_PRIVATE).edit()
+                .putString(PREF_OTHER_HOME, pkg + "/" + def.activityInfo.name).apply();
+        } catch (Exception e) {
+            Logger.i("rememberOtherLauncher: " + e);
+        }
+    }
+
+    public boolean openOtherLauncher()
+    {
+        Intent home = new Intent(Intent.ACTION_MAIN);
+        home.addCategory(Intent.CATEGORY_HOME);
+        String saved = getSharedPreferences("podbox", MODE_PRIVATE)
+                           .getString(PREF_OTHER_HOME, null);
+        android.content.pm.ActivityInfo other = null;
+        int best = -1;
+        for (android.content.pm.ResolveInfo ri :
+                getPackageManager().queryIntentActivities(home, 0))
+        {
+            android.content.pm.ActivityInfo ai = ri.activityInfo;
+            if (ai == null || getPackageName().equals(ai.packageName))
+                continue;
+            /* skip the "FallbackHome" of the Settings app */
+            if ("com.android.settings".equals(ai.packageName))
+                continue;
+            int score = 0;
+            if (saved != null && saved.equals(ai.packageName + "/" + ai.name))
+                score = 2;
+            else if (PREFERRED_OTHER_HOME.equals(ai.packageName))
+                score = 1;
+            if (score > best)
+            {
+                best = score;
+                other = ai;
+            }
+        }
+        if (other == null)
+        {
+            Logger.i("openOtherLauncher: no other home screen");
+            return false;
+        }
+        home.setClassName(other.packageName, other.name);
+        home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(home);
+        } catch (Exception e) {
+            Logger.i("openOtherLauncher: " + e);
+            return false;
+        }
+        return true;
     }
 
     @Override

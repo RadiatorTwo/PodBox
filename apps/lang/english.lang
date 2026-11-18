@@ -17285,3 +17285,31 @@
     recording_remote: "remote recording screen skin"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_PODBOX_OTHER_APPS
+  desc: PodBox: main menu, opens the other Android home screen
+  user: core
+  <source>
+    *: "Other Apps"
+  </source>
+  <dest>
+    *: "Other Apps"
+  </dest>
+  <voice>
+    *: "Other Apps"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_PODBOX_NO_OTHER_LAUNCHER
+  desc: PodBox: splash when no other Android home screen exists
+  user: core
+  <source>
+    *: "No other home screen found"
+  </source>
+  <dest>
+    *: "No other home screen found"
+  </dest>
+  <voice>
+    *: "No other home screen found"
+  </voice>
+</phrase>

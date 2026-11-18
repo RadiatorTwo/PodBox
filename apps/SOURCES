@@ -100,6 +100,7 @@ gui/statusbar.c
 gui/statusbar-skinned.c
 #if (CONFIG_PLATFORM&PLATFORM_ANDROID)
 hosted/android/notification.c
+hosted/android/launcher.c
 #endif
 /* PodBox: native Rockbox yes/no screen on Android too, so it works with
  * the hardware buttons and honours timeouts */

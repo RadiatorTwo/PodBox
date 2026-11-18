@@ -193,7 +193,25 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     Software-Canvas gezeichnet, auch bei Teil-Updates. Jetzt schreibt Rockbox direkt in die
     Surface (`ANativeWindow_lock` mit Dirty-Rechteck, nur die geänderten Zeilen werden kopiert,
     `-landroid`). `RockboxFramebuffer.java` zeichnet nicht mehr. Gemessen im WPS bei Wiedergabe
-    (je 20 s): PodBox 12–15 % → 10–11,5 % eines Kerns; Bildschirm aus/an geht.
+. **PodBox als Android-Startbildschirm:** `RockboxActivity` hat den Intent-Filter `HOME`, PodBox
+    ist auf dem Gerät als Startbildschirm eingestellt (`adb shell cmd package set-home-activity
+    com.blueshark.player/org.rockbox.RockboxActivity`, zurück über Einstellungen → Standard-Apps
+    oder mit `com.blueshark.sidebarlauncher/.ui.activity.MainActivity`). Nach dem Booten steht PodBox
+    direkt da, die Home-Taste (Navigationsleiste per Wischen von unten) führt zu PodBox, die
+    Übersicht geht weiter. Neuer Eintrag "Andere Apps" am Ende des Hauptmenüs
+    (`apps/hosted/android/launcher.c`, `RockboxService.openOtherLauncher()`): öffnet den
+    Startbildschirm, der vor PodBox eingestellt war (gemerkt in den Preferences, sonst
+    `sidebarlauncher`); Home führt zurück, Rockbox läuft dabei weiter. Dabei behoben:
+    - Kaltstart bei ausgeschaltetem Bildschirm (Android startet den Startbildschirm selbst neu)
+      stürzte ab (`BackgroundServiceStartNotAllowedException` in `onCreate`). Jetzt versucht die
+      Activity es beim nächsten `onResume`/Fokus erneut.
+    - PodBox wurde bei Pause und Bildschirm aus nach ca. 1 min beendet (Android stoppt
+      Hintergrund-Services von Apps im Leerlauf, `onDestroy()` ruft `System.exit`). Der Service
+      bleibt jetzt im Vordergrund, solange Rockbox läuft, auch in der Pause (stille Notification).
+      Kein `START_STICKY` mehr: Der Neustart ohne Oberfläche wurde sofort wieder gestoppt und riss
+      die neu gestartete Activity mit.
+    Getestet: Neustart des Geräts, Andere Apps → Home, Übersicht, Bildschirm aus 80 s in Pause
+    (überlebt), Prozess bei Bildschirm aus beendet (PodBox kommt beim Einschalten wieder).
 ## Modernisierung
 
 | Etappe | Stand |
@@ -231,7 +249,7 @@ Start, Menü, Ja/Nein-Dialog, Browser, FLAC-Wiedergabe mit Album-Art. Der alte W
   Jetzt holt `surfaceChanged()` den Fokus nach `setEnabled(true)`.
 - Auf dem Gerät getestet: Einstellungsseite beim ersten Start, Start mit Theme/Sprache aus
   `/sdcard/rockbox/config.cfg`, Browser auf der SD-Karte, Wiedergabe mit Album-Art,
-  Notification, Pause (AudioTrack gestoppt, HAL im Standby, Service verlässt den Vordergrund),
+  Notification, Pause (AudioTrack gestoppt, HAL im Standby; seit Fix 26 bleibt der Service im Vordergrund),
   Play aus dem Hintergrund per Medientaste (`Background started FGS: Allowed`, temporär
   freigegeben über `MEDIA_SESSION_CALLBACK`), Plugins (`lua.rock`, `reversi.rock` per `dlopen`
   aus `app_data`, SELinux erlaubt das mit Audit-Hinweis).
@@ -289,8 +307,7 @@ Vom User zu testen (per adb nicht möglich):
 4. Wärme im Alltag nach Abkühlen messen
 5. Anhören: 24-Bit-Dateien, MP3, Crossfade
 
-Vom User zu entscheiden:
-- Optional: Rockbox als Launcher.
+Vom User zu entscheiden: derzeit nichts offen.
 
 Test-Hilfen: `/data/local/tmp/cpu.sh <s>` (CPU von PodBox/surfaceflinger/audioserver, Werte x10
 = Promille eines Kerns) und `/data/local/tmp/thr.sh <s>` (pro Thread) liegen auf dem Gerät,
@@ -349,4 +366,5 @@ per adb nicht auslösen.
       vor; bei Bedarf `delete_entry()` bündeln. Die Datenbank-Dateien behalten die 10000
       gelöschten Einträge (Index 979 KB), "Neu generieren" würde sie verkleinern, löscht aber
       die Wiedergabezähler (vorher "Änderungen exportieren").
-- [ ] Optional: Rockbox als Launcher (HOME-Intent), eigenes Theme
+- [x] PodBox als Launcher (Fix 26)
+- [ ] Optional: eigenes Theme

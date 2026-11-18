@@ -27,6 +27,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import org.rockbox.Helper.Logger;
 import android.provider.Settings;
 import android.os.Bundle;
 import android.os.Handler;
@@ -130,7 +131,15 @@ public class RockboxActivity extends Activity
                 }
             }
         });
-        startService(intent);
+        /* PodBox: started while the screen is off (e.g. Android restarting
+         * PodBox as the home screen), the app still counts as background and
+         * startService() throws. Retry in onResume() / on window focus. */
+        try {
+            startService(intent);
+        } catch (IllegalStateException e) {
+            mStarted = false;
+            Logger.i("startService deferred: " + e);
+        }
     }
 
     private void setServiceActivity(boolean set)
@@ -158,7 +167,11 @@ public class RockboxActivity extends Activity
     {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus)
+        {
+            if (!mStarted && hasStorageAccess())
+                startRockbox();
             hideSystemBars();
+        }
     }
 
     public void onResume()
