@@ -4276,6 +4276,16 @@ static unsigned long audio_guess_frequency(struct mp3entry *id3)
         if (id3->frequency >= SAMPR_44 && id3->frequency == caps->samprs[i])
             return id3->frequency;
     }
+    /* PodBox: above the highest hardware rate (352.8/384 kHz files, the
+     * F20 Pro+ DAC path stops at 192 kHz) take the highest rate that divides
+     * it evenly: 352.8 -> 176.4, 384 -> 192. An exact 2:1 instead of
+     * falling back to 44.1/48 kHz. samprs[] is sorted high to low. */
+    for (size_t i = 0; i < caps->num_samprs; i += 1)
+    {
+        if (id3->frequency > caps->samprs[i] && caps->samprs[i] >= SAMPR_44 &&
+            id3->frequency % caps->samprs[i] == 0)
+            return caps->samprs[i];
+    }
     unsigned long fallback = (id3->frequency % 4000) ? SAMPR_44 : SAMPR_48;
     if ((fallback == SAMPR_44 && have_44) || (fallback == SAMPR_48 && have_48))
         return fallback;

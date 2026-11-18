@@ -131,6 +131,31 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     `play_frequency` hatten die `.lng`-Dateien deshalb die alte Nummerierung (z. B.
     "Symbole im Zwischenspeicher" statt "Verknüpfungen"). Der Cache speichert jetzt das Target
     und gilt nur bei gleichem Target. Nach Feature-Änderungen `build.sh zip` bauen.
+20. **Audioausgabe per AAudio, 32 Bit:** `pcm-android.c` schreibt jetzt selbst über AAudio
+    (per `dlopen`, der native Teil ist für API 21 gebaut) als 32-Bit-Integer
+    (`AAUDIO_FORMAT_PCM_I32`, Fallback Float). Ein nativer Audio-Thread holt die Daten von
+    Rockbox. Der Java-AudioTrack, der Streamer-Thread und das Kopieren über JNI sind weg,
+    `RockboxPCM` regelt nur noch Lautstärke und Foreground-Service. Am Kopfhörer landet das als
+    `HAL format: PCM_32_BIT` auf dem Direktausgang. Getrennte oder hängende Ausgänge
+    (Kopfhörer ausgesteckt, `AAUDIO_ERROR_DISCONNECTED`, 600 ms ohne Abnahme) werden neu
+    geöffnet, Rockbox blockiert dann nicht. Rockbox liefert intern weiterhin 16 Bit (wird
+    bitgenau in die oberen 16 Bit geschoben), der 32-Bit-Datenpfad durch DSP/Puffer ist der
+    nächste Schritt.
+21. **Hardware-Grenze 192 kHz:** Der Direktpfad zum DAC läuft höchstens mit 192 kHz.
+    352,8 kHz rechnet der HAL selbst auf 192 kHz um (`source 352800 -> hardware 192000`),
+    bei 384 kHz liefert der HAL nur Fehler (`pcm_get_htimestamp fail`) und nimmt keine Daten ab.
+    Mit dem DEEP_BUFFER-Flag (Stromspar-Modus) scheitert das Öffnen über 192 kHz ganz
+    (`AUD_ASSERT` in `AudioALSAStreamOut.cpp`); ein so geöffneter Ausgang bleibt in Android
+    hängen, bis eine andere Rate angefordert wird. Deshalb meldet PodBox nur Raten bis 192 kHz;
+    Dateien darüber halbiert Rockbox exakt 2:1 (352,8 -> 176,4, 384 -> 192,
+    `audio_guess_frequency()` in `apps/playback.c`), statt wie bisher auf 44,1 kHz zu fallen.
+    Rockbox' Resampler filtert dabei nicht (lineare Interpolation), ein Halbband-Filter fehlt
+    noch. Während der Tests zeigte Rockbox einmal eine Panic (Text unbekannt), vermutlich durch
+    den hängenden 384-kHz-Ausgang; dieser Weg ist jetzt ausgeschlossen.
+22. **Lautstärke beim Start auf 100:** Rockbox setzte beim Start zuerst seine eigene gespeicherte
+    Lautstärke (nach Datenverlust der Standardwert 0 dB) und gab sie an Android weiter, bevor der
+    Android-Wert ankam. Jetzt ignoriert `RockboxPCM` Rockbox-Lautstärken, bis Rockbox den
+    Android-Wert übernommen hat, und `apps/misc.c` übernimmt den ersten Android-Wert immer.
 ## Modernisierung
 
 | Etappe | Stand |

@@ -18,10 +18,31 @@
  *
  ****************************************************************************/
 
+/*
+ * PodBox: PCM output through AAudio instead of a Java AudioTrack.
+ *
+ * A native audio thread pulls the PCM data from Rockbox and writes it to an
+ * AAudio stream as 32-bit integer samples, at whatever rate Rockbox asks for.
+ * Java (RockboxPCM) is only left with the Android volume and the foreground
+ * service. Reasons:
+ *  - the Java AudioTrack is limited to 192 kHz on Android 12, AAudio is not
+ *  - 32-bit output to the direct (bit-perfect) headphone path of the F20 Pro+
+ *  - no more copying every sample through JNI
+ *
+ * AAudio exists from API 26 on, the native code is built for API 21, so the
+ * functions are looked up with dlopen()/dlsym().
+ */
+
 #include <jni.h>
 #include <stdbool.h>
 #define _SYSTEM_WITH_JNI /* for getJavaEnvironment */
 #include <pthread.h>
+#include <dlfcn.h>
+#include <sys/resource.h>
+#include <unistd.h>
+#include <android/log.h>
+#include <aaudio/AAudio.h>
+#include "config.h"
 #include "system.h"
 #include "kernel.h"
 #include "debug.h"
@@ -31,27 +52,115 @@
 #include "pcm_sink.h"
 #include "audiohw.h"
 
+#define LOG(...) __android_log_print(ANDROID_LOG_INFO, "PodBoxAudio", __VA_ARGS__)
+
 extern JNIEnv *env_ptr;
 
-/* infos about our pcm chunks */
+/* ---- AAudio, loaded at runtime ---- */
+static struct
+{
+    aaudio_result_t (*createStreamBuilder)(AAudioStreamBuilder **);
+    void (*setSampleRate)(AAudioStreamBuilder *, int32_t);
+    void (*setChannelCount)(AAudioStreamBuilder *, int32_t);
+    void (*setFormat)(AAudioStreamBuilder *, aaudio_format_t);
+    void (*setPerformanceMode)(AAudioStreamBuilder *, aaudio_performance_mode_t);
+    void (*setSharingMode)(AAudioStreamBuilder *, aaudio_sharing_mode_t);
+    void (*setUsage)(AAudioStreamBuilder *, aaudio_usage_t);
+    void (*setContentType)(AAudioStreamBuilder *, aaudio_content_type_t);
+    void (*setBufferCapacityInFrames)(AAudioStreamBuilder *, int32_t);
+    aaudio_result_t (*openStream)(AAudioStreamBuilder *, AAudioStream **);
+    aaudio_result_t (*deleteBuilder)(AAudioStreamBuilder *);
+    aaudio_result_t (*requestStart)(AAudioStream *);
+    aaudio_result_t (*requestPause)(AAudioStream *);
+    aaudio_result_t (*requestFlush)(AAudioStream *);
+    aaudio_result_t (*requestStop)(AAudioStream *);
+    aaudio_result_t (*close)(AAudioStream *);
+    aaudio_result_t (*write)(AAudioStream *, const void *, int32_t, int64_t);
+    aaudio_result_t (*waitForStateChange)(AAudioStream *, aaudio_stream_state_t,
+                                          aaudio_stream_state_t *, int64_t);
+    int32_t (*getSampleRate)(AAudioStream *);
+    aaudio_format_t (*getFormat)(AAudioStream *);
+    int32_t (*getBufferCapacityInFrames)(AAudioStream *);
+    aaudio_result_t (*setBufferSizeInFrames)(AAudioStream *, int32_t);
+    int32_t (*getFramesPerBurst)(AAudioStream *);
+    int32_t (*getXRunCount)(AAudioStream *);
+    const char *(*resultToText)(aaudio_result_t);
+} aa;
+
+static bool load_aaudio(void)
+{
+    void *lib = dlopen("libaaudio.so", RTLD_NOW);
+    if (!lib)
+    {
+        LOG("dlopen libaaudio.so failed: %s", dlerror());
+        return false;
+    }
+#define SYM(field, name) \
+    if (!(*(void **)&aa.field = dlsym(lib, name))) \
+    { LOG("missing %s", name); return false; }
+    SYM(createStreamBuilder,       "AAudio_createStreamBuilder")
+    SYM(setSampleRate,             "AAudioStreamBuilder_setSampleRate")
+    SYM(setChannelCount,           "AAudioStreamBuilder_setChannelCount")
+    SYM(setFormat,                 "AAudioStreamBuilder_setFormat")
+    SYM(setPerformanceMode,        "AAudioStreamBuilder_setPerformanceMode")
+    SYM(setSharingMode,            "AAudioStreamBuilder_setSharingMode")
+    SYM(setUsage,                  "AAudioStreamBuilder_setUsage")
+    SYM(setContentType,            "AAudioStreamBuilder_setContentType")
+    SYM(setBufferCapacityInFrames, "AAudioStreamBuilder_setBufferCapacityInFrames")
+    SYM(openStream,                "AAudioStreamBuilder_openStream")
+    SYM(deleteBuilder,             "AAudioStreamBuilder_delete")
+    SYM(requestStart,              "AAudioStream_requestStart")
+    SYM(requestPause,              "AAudioStream_requestPause")
+    SYM(requestFlush,              "AAudioStream_requestFlush")
+    SYM(requestStop,               "AAudioStream_requestStop")
+    SYM(close,                     "AAudioStream_close")
+    SYM(write,                     "AAudioStream_write")
+    SYM(waitForStateChange,        "AAudioStream_waitForStateChange")
+    SYM(getSampleRate,             "AAudioStream_getSampleRate")
+    SYM(getFormat,                 "AAudioStream_getFormat")
+    SYM(getBufferCapacityInFrames, "AAudioStream_getBufferCapacityInFrames")
+    SYM(setBufferSizeInFrames,     "AAudioStream_setBufferSizeInFrames")
+    SYM(getFramesPerBurst,         "AAudioStream_getFramesPerBurst")
+    SYM(getXRunCount,              "AAudioStream_getXRunCount")
+    SYM(resultToText,              "AAudio_convertResultToText")
+#undef SYM
+    return true;
+}
+
+/* ---- state ---- */
+
+/* Rockbox's PCM data, protected by audio_lock_mutex (sink_lock()) */
 static const void *pcm_data_start;
 static size_t  pcm_data_size;
 static int     audio_locked = 0;
 static pthread_mutex_t audio_lock_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/* cache frequently called methods */
-static jmethodID play_pause_method;
-static jmethodID stop_method;
-static jmethodID set_volume_method;
-static jmethodID set_freq_method;
-static jmethodID write_method;
+/* the AAudio stream, protected by stream_mutex. Lock order: audio lock
+ * first, then stream_mutex; the audio thread never holds stream_mutex
+ * while it takes the audio lock. */
+static pthread_mutex_t stream_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  play_cond = PTHREAD_COND_INITIALIZER;
+static AAudioStream   *stream;
+static aaudio_format_t stream_format;
+static int32_t         stream_rate = SAMPR_44;
+static volatile bool   playing;
+static bool            have_aaudio;
+
+/* fine attenuation from RockboxPCM.set_volume(): 1.0 = untouched samples */
+static volatile float  pcm_gain = 1.0f;
+
+/* one write: 50 ms, sized for the highest rate */
+#define WRITE_MS          50
+#define MAX_RATE          384000
+#define MAX_WRITE_FRAMES  (MAX_RATE * WRITE_MS / 1000)
+static int32_t out_buf[MAX_WRITE_FRAMES * 2];
+
+static JavaVM   *jvm;
 static jclass    RockboxPCM_class;
 static jobject   RockboxPCM_instance;
+static jmethodID set_volume_method;
+static jmethodID play_state_method;
 
-
-/*
- * mutex lock/unlock wrappers neatness' sake
- */
 static inline void lock_audio(void)
 {
     pthread_mutex_lock(&audio_lock_mutex);
@@ -60,80 +169,6 @@ static inline void lock_audio(void)
 static inline void unlock_audio(void)
 {
     pthread_mutex_unlock(&audio_lock_mutex);
-}
-
-/*
- * write pcm samples to the hardware. Calls AudioTrack.write directly (which
- * is usually a blocking call)
- *
- * temp_array is not strictly needed as a parameter as we could
- * create it here, but that would result in frequent garbage collection
- *
- * it is called from the PositionMarker callback of AudioTrack
- **/
-JNIEXPORT jint JNICALL
-Java_org_rockbox_RockboxPCM_nativeWrite(JNIEnv *env, jobject this,
-                                        jbyteArray temp_array, jint max_size)
-{
-    bool new_buffer = false;
-
-    lock_audio();
-
-    jint left = max_size;
-
-    if (!pcm_data_size) /* get some initial data */
-    {
-        new_buffer = pcm_play_dma_complete_callback(PCM_DMAST_OK,
-                            &pcm_data_start, &pcm_data_size);
-    }
-
-    while(left > 0 && pcm_data_size)
-    {
-        jint ret;
-        jsize transfer_size = MIN((size_t)left, pcm_data_size);
-        /* decrement both by the amount we're going to write */
-        pcm_data_size -= transfer_size; left -= transfer_size;
-        (*env)->SetByteArrayRegion(env, temp_array, 0,
-                                        transfer_size, (jbyte*)pcm_data_start);
-
-        if (new_buffer)
-        {
-            new_buffer = false;
-            pcm_play_dma_status_callback(PCM_DMAST_STARTED);
-        }
-        /* SetByteArrayRegion copies, which enables us to unlock audio. This
-         * is good because the below write() call almost certainly block.
-         * This allows the mixer to be clocked at a regular interval which vastly
-         * improves responsiveness when pausing/stopping playback */
-        unlock_audio();
-        ret = (*env)->CallIntMethod(env, this, write_method,
-                                            temp_array, 0, transfer_size);
-        lock_audio();
-
-        /* check if still playing. might have changed during the write() call */
-        if (!pcm_is_playing())
-            break;
-
-        if (ret < 0)
-        {
-            unlock_audio();
-            return ret;
-        }
-
-        if (pcm_data_size == 0) /* need new data */
-        {
-            new_buffer = pcm_play_dma_complete_callback(PCM_DMAST_OK,
-                                &pcm_data_start, &pcm_data_size);
-        }
-        else /* increment data pointer and feed more */
-            pcm_data_start += transfer_size;
-    }
-
-    if (new_buffer)
-        pcm_play_dma_status_callback(PCM_DMAST_STARTED);
-
-    unlock_audio();
-    return max_size - left;
 }
 
 static void sink_lock(void)
@@ -148,13 +183,243 @@ static void sink_unlock(void)
         unlock_audio();
 }
 
+/* tell Java about play/stop (foreground service, widgets) */
+static void notify_play_state(bool play)
+{
+    JNIEnv *env = getJavaEnvironment();
+    if (env && RockboxPCM_instance)
+        (*env)->CallVoidMethod(env, RockboxPCM_instance, play_state_method,
+                               (jboolean)play);
+}
+
+/* ---- stream handling, call with stream_mutex held ---- */
+
+static void close_stream(void)
+{
+    if (!stream)
+        return;
+    aa.requestStop(stream);
+    aa.close(stream);
+    stream = NULL;
+}
+
+static bool open_stream(void)
+{
+    if (stream)
+        return true;
+    if (!have_aaudio)
+        return false;
+
+    /* 32-bit integer if possible (API 31), float as a fallback; both carry
+     * more than the 16 bits Rockbox produces today */
+    static const aaudio_format_t formats[] =
+        { AAUDIO_FORMAT_PCM_I32, AAUDIO_FORMAT_PCM_FLOAT };
+
+    for (unsigned i = 0; i < ARRAYLEN(formats); i++)
+    {
+        AAudioStreamBuilder *b;
+        if (aa.createStreamBuilder(&b) != AAUDIO_OK)
+            return false;
+        aa.setSampleRate(b, stream_rate);
+        aa.setChannelCount(b, 2);
+        aa.setFormat(b, formats[i]);
+        aa.setSharingMode(b, AAUDIO_SHARING_MODE_SHARED);
+        /* speaker: deep buffer output instead of the low latency one */
+        aa.setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_POWER_SAVING);
+        aa.setUsage(b, AAUDIO_USAGE_MEDIA);
+        aa.setContentType(b, AAUDIO_CONTENT_TYPE_MUSIC);
+        aa.setBufferCapacityInFrames(b, stream_rate / 5); /* 200 ms */
+        aaudio_result_t r = aa.openStream(b, &stream);
+        aa.deleteBuilder(b);
+        if (r != AAUDIO_OK)
+        {
+            LOG("open %d Hz format %d failed: %s", (int)stream_rate,
+                (int)formats[i], aa.resultToText(r));
+            stream = NULL;
+            continue;
+        }
+        if (aa.getSampleRate(stream) != stream_rate)
+        {
+            LOG("got %d Hz instead of %d Hz", (int)aa.getSampleRate(stream),
+                (int)stream_rate);
+        }
+        stream_format = aa.getFormat(stream);
+        int32_t cap = aa.getBufferCapacityInFrames(stream);
+        aa.setBufferSizeInFrames(stream, cap);
+        LOG("stream open: %d Hz, format %d, buffer %d frames, burst %d",
+            (int)aa.getSampleRate(stream), (int)stream_format, (int)cap,
+            (int)aa.getFramesPerBurst(stream));
+        return true;
+    }
+    return false;
+}
+
+static void pause_and_flush(void)
+{
+    if (!stream)
+        return;
+    aaudio_stream_state_t st;
+    aa.requestPause(stream);
+    aa.waitForStateChange(stream, AAUDIO_STREAM_STATE_PAUSING, &st,
+                          200 * 1000000LL);
+    aa.requestFlush(stream);
+}
+
+/* ---- the audio thread ---- */
+
+/* converts 16-bit Rockbox frames to the stream format */
+static void convert(int32_t *dst, const int16_t *src, size_t samples)
+{
+    float g = pcm_gain;
+    if (stream_format == AAUDIO_FORMAT_PCM_FLOAT)
+    {
+        float *f = (float *)dst;
+        float scale = g / 32768.0f;
+        while (samples--)
+            *f++ = *src++ * scale;
+    }
+    else if (g >= 1.0f)
+    {
+        while (samples--)
+            *dst++ = (int32_t)*src++ << 16;   /* bit-exact */
+    }
+    else
+    {
+        float scale = g * 65536.0f;
+        while (samples--)
+            *dst++ = (int32_t)(*src++ * scale);
+    }
+}
+
+/* takes up to max_frames from Rockbox; returns the number of frames */
+static size_t fill(size_t max_frames)
+{
+    const size_t frame_bytes = PCM_SAMPLE_SIZE;
+    size_t left = max_frames * frame_bytes;
+    int32_t *dst = out_buf;
+    bool new_buffer = false;
+
+    lock_audio();
+
+    if (!pcm_data_size) /* get some initial data */
+        new_buffer = pcm_play_dma_complete_callback(PCM_DMAST_OK,
+                            &pcm_data_start, &pcm_data_size);
+
+    while (left > 0 && pcm_data_size)
+    {
+        size_t n = MIN(left, pcm_data_size);
+        convert(dst, pcm_data_start, n / sizeof(int16_t));
+        dst += n / sizeof(int16_t);
+        left -= n;
+        pcm_data_size -= n;
+        pcm_data_start += n;
+
+        if (new_buffer)
+        {
+            new_buffer = false;
+            pcm_play_dma_status_callback(PCM_DMAST_STARTED);
+        }
+
+        if (!pcm_is_playing())
+            break;
+
+        if (pcm_data_size == 0) /* need new data */
+            new_buffer = pcm_play_dma_complete_callback(PCM_DMAST_OK,
+                                &pcm_data_start, &pcm_data_size);
+    }
+
+    if (new_buffer)
+        pcm_play_dma_status_callback(PCM_DMAST_STARTED);
+
+    unlock_audio();
+    return max_frames - left / frame_bytes;
+}
+
+/* reopen after the output went away (headphones unplugged:
+ * AAUDIO_ERROR_DISCONNECTED) or stopped taking data. Call with stream_mutex
+ * held. */
+static void restart_stream(const char *why)
+{
+    LOG("restarting stream: %s", why);
+    close_stream();
+    if (open_stream())
+        aa.requestStart(stream);
+}
+
+/* writes out_buf completely, or gives up (the data is dropped, so Rockbox's
+ * playback never stalls on a broken output). Call with stream_mutex held. */
+static void write_all(size_t frames)
+{
+    const int32_t *p = out_buf;
+    int stalls = 0;
+    while (frames && playing && stream)
+    {
+        aaudio_result_t r = aa.write(stream, p, frames, 200 * 1000000LL);
+        if (r < 0)
+        {
+            restart_stream(aa.resultToText(r));
+            return;
+        }
+        if (r == 0)
+        {
+            /* the output takes nothing for 3 x 200 ms */
+            if (++stalls >= 3)
+            {
+                restart_stream("output stalled");
+                return;
+            }
+            continue;
+        }
+        stalls = 0;
+        p += r * 2;
+        frames -= r;
+    }
+}
+
+static void *audio_thread(void *arg)
+{
+    (void)arg;
+    JNIEnv *env;
+    (*jvm)->AttachCurrentThread(jvm, &env, NULL); /* for notify_play_state */
+    setpriority(PRIO_PROCESS, gettid(), -19); /* ANDROID_PRIORITY_URGENT_AUDIO */
+
+    while (1)
+    {
+        pthread_mutex_lock(&stream_mutex);
+        while (!playing)
+            pthread_cond_wait(&play_cond, &stream_mutex);
+        int32_t frames = stream_rate * WRITE_MS / 1000;
+        pthread_mutex_unlock(&stream_mutex);
+
+        size_t got = fill(frames);
+        if (!got)
+        {
+            usleep(2000); /* no data yet; Rockbox stops us if it's the end */
+            continue;
+        }
+
+        pthread_mutex_lock(&stream_mutex);
+        write_all(got);
+        pthread_mutex_unlock(&stream_mutex);
+    }
+    return NULL;
+}
+
+/* ---- pcm sink ---- */
+
 static void sink_set_freq(uint16_t freq)
 {
-    /* PodBox: called from pcm_apply_settings() while playback is stopped;
-     * RockboxPCM recreates its AudioTrack at the new rate */
-    JNIEnv* env = getJavaEnvironment();
-    (*env)->CallVoidMethod(env, RockboxPCM_instance, set_freq_method,
-                           (jint)hw_freq_sampr[freq]);
+    /* called from pcm_apply_settings() while playback is stopped */
+    int32_t rate = hw_freq_sampr[freq];
+    pthread_mutex_lock(&stream_mutex);
+    if (rate != stream_rate)
+    {
+        LOG("output rate %d -> %d", (int)stream_rate, (int)rate);
+        close_stream();
+        stream_rate = rate;
+        open_stream();
+    }
+    pthread_mutex_unlock(&stream_mutex);
 }
 
 static void sink_dma_start(const void *addr, size_t size)
@@ -162,50 +427,48 @@ static void sink_dma_start(const void *addr, size_t size)
     pcm_data_start = addr;
     pcm_data_size = size;
 
-    (*env_ptr)->CallVoidMethod(env_ptr,
-                               RockboxPCM_instance,
-                               play_pause_method,
-                               0);
+    pthread_mutex_lock(&stream_mutex);
+    if (open_stream())
+    {
+        aa.requestStart(stream);
+        playing = true;
+        pthread_cond_signal(&play_cond);
+    }
+    pthread_mutex_unlock(&stream_mutex);
+
+    notify_play_state(true);
 }
 
 static void sink_dma_stop(void)
 {
-    /* NOTE: due to how pcm_play_dma_complete_callback() works, this is
-     * possibly called from nativeWrite(), i.e. another (host) thread
-     * => need to discover the appropriate JNIEnv* */
-    JNIEnv* env = getJavaEnvironment();
-    (*env)->CallVoidMethod(env,
-                           RockboxPCM_instance,
-                           stop_method);
+    /* may be called from the audio thread (inside fill()) */
+    pthread_mutex_lock(&stream_mutex);
+    playing = false;
+    pause_and_flush();
+    pthread_mutex_unlock(&stream_mutex);
+
+    notify_play_state(false);
 }
 
 static void sink_dma_init(void)
 {
-    /* in order to have background music playing after leaving the activity,
-     * we need to allocate the PCM object from the Rockbox thread (the Activity
-     * runs in a separate thread because it would otherwise kill us when
-     * stopping it)
-     *
-     * Luckily we only reference the PCM object from here, so it's safe (and
-     * clean) to allocate it here
-     **/
+    /* RockboxPCM is created from the Rockbox thread so that it lives as
+     * long as the service */
     JNIEnv e = *env_ptr;
-    /* get the class and its constructor */
-    /* PodBox: global references, sink_dma_stop() is also called from the
-     * Java audio thread (nativeWrite) where local refs of the Rockbox
-     * thread are invalid -> CheckJNI abort on pause/track change */
+    (*env_ptr)->GetJavaVM(env_ptr, &jvm);
     jclass cls = e->FindClass(env_ptr, "org/rockbox/RockboxPCM");
     RockboxPCM_class = e->NewGlobalRef(env_ptr, cls);
     jmethodID constructor = e->GetMethodID(env_ptr, RockboxPCM_class, "<init>", "()V");
-    /* instance = new RockboxPCM() */
     jobject obj = e->NewObject(env_ptr, RockboxPCM_class, constructor);
     RockboxPCM_instance = e->NewGlobalRef(env_ptr, obj);
-    /* cache needed methods */
-    play_pause_method = e->GetMethodID(env_ptr, RockboxPCM_class, "play_pause", "(Z)V");
     set_volume_method = e->GetMethodID(env_ptr, RockboxPCM_class, "set_volume", "(I)V");
-    set_freq_method   = e->GetMethodID(env_ptr, RockboxPCM_class, "set_freq", "(I)V");
-    stop_method       = e->GetMethodID(env_ptr, RockboxPCM_class, "stop", "()V");
-    write_method      = e->GetMethodID(env_ptr, RockboxPCM_class, "write", "([BII)I");
+    play_state_method = e->GetMethodID(env_ptr, RockboxPCM_class, "play_state", "(Z)V");
+
+    have_aaudio = load_aaudio();
+
+    pthread_t t;
+    pthread_create(&t, NULL, audio_thread, NULL);
+    pthread_detach(t);
 }
 
 static void sink_dma_postinit(void)
@@ -221,10 +484,10 @@ void pcm_set_mixer_volume(int volume)
  * release audio resources */
 void pcm_shutdown(void)
 {
-    JNIEnv e = *env_ptr;
-    jmethodID release = e->GetMethodID(env_ptr, RockboxPCM_class, "release", "()V");
-    e->CallVoidMethod(env_ptr, RockboxPCM_instance, release);
-    pthread_mutex_destroy(&audio_lock_mutex);
+    pthread_mutex_lock(&stream_mutex);
+    playing = false;
+    close_stream();
+    pthread_mutex_unlock(&stream_mutex);
 }
 
 struct pcm_sink builtin_pcm_sink = {
@@ -255,4 +518,13 @@ Java_org_rockbox_RockboxPCM_postVolumeChangedEvent(JNIEnv *env,
     /* for the main queue, the volume will be available through
      * button_get_data() */
     queue_broadcast(SYS_VOLUME_CHANGED, volume);
+}
+
+JNIEXPORT void JNICALL
+Java_org_rockbox_RockboxPCM_nativeSetGain(JNIEnv *env, jobject this,
+                                          jfloat gain)
+{
+    (void) env;
+    (void) this;
+    pcm_gain = gain;
 }

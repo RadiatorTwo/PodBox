@@ -20,189 +20,39 @@
 
 package org.rockbox;
 
-import java.util.Arrays;
 import org.rockbox.Helper.Logger;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.media.AudioAttributes;
-import android.media.AudioFormat;
 import android.media.AudioManager;
-import android.media.AudioTrack;
-import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.Build;
-import android.os.Process;
 
-public class RockboxPCM 
+/* PodBox: the audio itself is played by native code (pcm-android.c, AAudio,
+ * 32 bit, any rate). This class is left with what needs Java: the Android
+ * volume (shared with Rockbox) and the foreground service / widgets. */
+public class RockboxPCM
 {
     private static final int streamtype = AudioManager.STREAM_MUSIC;
-    /* PodBox: current output rate, changed by set_freq() */
-    private int samplerate = 44100;
-    /* should be CHANNEL_OUT_STEREO in 2.0 and above */
-    private static final int channels = 
-            AudioFormat.CHANNEL_OUT_STEREO;
-    private static final int encoding = 
-            AudioFormat.ENCODING_PCM_16BIT;
     private AudioManager audiomanager;
     private RockboxService rbservice;
-    private byte[] raw_data;
 
-    private int refillmark;
     private int maxstreamvolume;
     private int setstreamvolume = -1;
-    private float minpcmvolume;
-    private float curpcmvolume = 0;
-    private float pcmrange;
-
-    /* 8k at 44.1 kHz is plenty, but some devices may have a higher minimum.
-     * PodBox: scaled with the rate, so the buffer always holds ~46 ms */
-    private static int chunkSizeFor(int rate)
-    {
-        int size = (int)((8L << 10) * rate / 44100) & ~3; /* whole frames */
-        return Math.max(size, AudioTrack.getMinBufferSize(rate, channels, encoding));
-    }
-    private volatile int chunkSize = chunkSizeFor(44100);
-    Streamer streamer;
-
-    /* PodBox: RockboxPCM used to extend AudioTrack. It now wraps one, so the
-     * track can be built with PERFORMANCE_MODE_POWER_SAVING (API 26+). That
-     * puts it on the deep-buffer output; otherwise Android 12 uses the
-     * low-latency primary output (256-frame HAL periods, FastMixer), which
-     * costs about half a CPU core and heats the device. */
-    private volatile AudioTrack track;
-    /* PodBox: a track replaced by set_freq(); released by the streamer
-     * thread, which is the only one that may be inside write() */
-    private AudioTrack retired;
-
-    private static AudioTrack createTrack(int samplerate, int chunkSize)
-    {
-        AudioAttributes attr = new AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-            .build();
-        AudioFormat fmt = new AudioFormat.Builder()
-            .setSampleRate(samplerate)
-            .setChannelMask(channels)
-            .setEncoding(encoding)
-            .build();
-        if (Build.VERSION.SDK_INT >= 26)
-        {
-            return new AudioTrack.Builder()
-                .setAudioAttributes(attr)
-                .setAudioFormat(fmt)
-                .setBufferSizeInBytes(chunkSize)
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_POWER_SAVING)
-                .build();
-        }
-        return new AudioTrack(attr, fmt, chunkSize, AudioTrack.MODE_STREAM,
-                              AudioManager.AUDIO_SESSION_ID_GENERATE);
-    }
+    /* PodBox: Android's volume wins at startup. Until Rockbox has taken over
+     * the volume we posted, its set_volume() calls come from its own stored
+     * (or default 0 dB!) value and must not touch the Android volume. */
+    private int postedVolume = Integer.MIN_VALUE;
+    private boolean volumeSynced = false;
 
     public RockboxPCM()
     {
-        track = createTrack(samplerate, chunkSize);
-
-        streamer = new Streamer(chunkSize);
-        streamer.start();
-        raw_data = new byte[chunkSize]; /* in shorts */
-        Arrays.fill(raw_data, (byte) 0);
-
-        /* find cleaner way to get context? */
         rbservice = RockboxService.getInstance();
         audiomanager =
             (AudioManager) rbservice.getSystemService(Context.AUDIO_SERVICE);
         maxstreamvolume = audiomanager.getStreamMaxVolume(streamtype);
 
-        minpcmvolume = AudioTrack.getMinVolume();
-        pcmrange = AudioTrack.getMaxVolume() - minpcmvolume;
-
         setupVolumeHandler();
-    }
-
-    /**
-     * This class does the actual playback work. Its run() method
-     * continuously writes data to the AudioTrack. This operation blocks
-     * and should therefore be run on its own thread.
-     */
-    private class Streamer extends Thread
-    {
-        byte[] buffer;
-        private boolean quit = false;
-
-        Streamer(int bufsize)
-        {
-            super("audio thread");
-            buffer = new byte[bufsize];
-        }
-
-        @Override
-        public void run()
-        {
-            /* THREAD_PRIORITY_URGENT_AUDIO can only be specified via
-             * setThreadPriority(), and not via thread.setPriority(). This is
-             * also how the android's HandlerThread class implements it */
-            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
-            while (!quit)
-            {
-                AudioTrack old;
-                synchronized (RockboxPCM.this)
-                {
-                    old = retired;
-                    retired = null;
-                }
-                if (old != null)
-                    old.release();
-                if (buffer.length != chunkSize)
-                    buffer = new byte[chunkSize];
-                switch(track.getPlayState())
-                {
-                    case AudioTrack.PLAYSTATE_PLAYING:
-                        nativeWrite(buffer, buffer.length);
-                        break;
-                    case AudioTrack.PLAYSTATE_PAUSED:
-                    case AudioTrack.PLAYSTATE_STOPPED:
-                    {
-                        synchronized (this)
-                        {
-                            try
-                            {
-                                wait();
-                            }
-                            catch (InterruptedException e) { e.printStackTrace(); }
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        synchronized void quit()
-        {
-            quit = true;
-            notify();
-        }
-
-        synchronized void kick()
-        {
-            notify();
-        }
-
-        void quitAndJoin()
-        {
-            while(true)
-            {
-                try
-                {
-                    quit();
-                    join();
-                    return;
-                }
-                catch (InterruptedException e) { }
-            }
-        }
     }
 
     private native void postVolumeChangedEvent(int volume);
@@ -211,6 +61,9 @@ public class RockboxPCM
     {
         int rbvolume = streamToRockbox(volume);
         Logger.d("java:postVolumeChangedEvent, avol "+volume+" rbvol "+rbvolume);
+        postedVolume = rbvolume;
+        /* the Android step now is the whole volume */
+        nativeSetGain(1.0f);
         postVolumeChangedEvent(rbvolume);
     }
 
@@ -219,7 +72,7 @@ public class RockboxPCM
      * 100 steps, 1 = -58 dB, 20 = -40 dB, 60 = -17 dB, 100 = 0 dB). The old
      * code spread -99..0 dB evenly over the steps, so "-79 dB" was really
      * about -39 dB and the lowest Rockbox steps were still clearly audible.
-     * Below Android's lowest step the AudioTrack attenuates the rest. */
+     * Below Android's lowest step the native output attenuates the rest. */
     private float[] streamDb;
     private boolean streamDbHeadset;
 
@@ -291,137 +144,36 @@ public class RockboxPCM
             new IntentFilter("android.media.VOLUME_CHANGED_ACTION"));
     }
 
-    private int bytes2frames(int bytes) 
-    {
-        /* 1 sample is 2 bytes, 2 samples are 1 frame */
-        return (bytes/4);
-    }
-
-    private int frames2bytes(int frames) 
-    {
-        /* 1 frame is 2 samples, 1 sample is 2 bytes */
-        return (frames*4);
-    }
-
-    private void play_pause(boolean pause) 
+    /* called from native code: playback started (true) or stopped */
+    private void play_state(boolean playing)
     {
         RockboxService service = RockboxService.getInstance();
-        if (pause)
-        {
-            Intent widgetUpdate = new Intent("org.rockbox.UpdateState");
-            widgetUpdate.setPackage(service.getPackageName());
-            widgetUpdate.putExtra("state", "pause");
-            service.sendBroadcast(widgetUpdate);
-            service.stopForeground();
-            track.pause();
-        }
-        else
-        {
-            Intent widgetUpdate = new Intent("org.rockbox.UpdateState");
-            widgetUpdate.setPackage(service.getPackageName());
-            widgetUpdate.putExtra("state", "play");
-            service.sendBroadcast(widgetUpdate);
-            service.startForeground();
-            if (track.getPlayState() == AudioTrack.PLAYSTATE_STOPPED)
-            {
-                /* drop anything written while stopped (e.g. right after a
-                 * rate change) */
-                track.flush();
-                if (raw_data.length != chunkSize)
-                    raw_data = new byte[chunkSize];
-                /* need to fill with silence before starting playback */ 
-                track.write(raw_data, 0, raw_data.length);
-            }
-            play();
-        }
-    }
-
-    /* called from native code (pcm-android.c) */
-    public int write(byte[] audioData, int offsetInBytes, int sizeInBytes)
-    {
-        return track.write(audioData, offsetInBytes, sizeInBytes);
-    }
-
-    public void play() throws IllegalStateException
-    {
-        track.play();
-        /* when stopped or paused the streamer is in a wait() state. need
-         * it to wake it up */
-        streamer.kick();
-    }
-
-    public synchronized void stop() throws IllegalStateException 
-    {
-        /* flush pending data, but turn the volume off so it cannot be heard.
-         * This is so that we don't hear old data if music is resumed very
-         * quickly after (e.g. when seeking).
-         */
-        float old_vol = curpcmvolume; 
-        try {
-            setStereoVolume(0, 0);
-            track.flush();
-            track.stop();
-        } catch (IllegalStateException e) {
-            throw new IllegalStateException(e);
-        } finally {
-            setStereoVolume(old_vol, old_vol);
-        }
-
         Intent widgetUpdate = new Intent("org.rockbox.UpdateState");
-        widgetUpdate.setPackage(RockboxService.getInstance().getPackageName());
-        widgetUpdate.putExtra("state", "stop");
-        RockboxService.getInstance().sendBroadcast(widgetUpdate);
-        RockboxService.getInstance().stopForeground();
+        widgetUpdate.setPackage(service.getPackageName());
+        widgetUpdate.putExtra("state", playing ? "play" : "stop");
+        service.sendBroadcast(widgetUpdate);
+        if (playing)
+            service.startForeground();
+        else
+            service.stopForeground();
     }
 
-    /* PodBox: called from native code (sink_set_freq) while playback is
-     * stopped. Builds a new AudioTrack at the new rate. */
-    private void set_freq(int rate)
-    {
-        if (rate == samplerate)
-            return;
-        Logger.i("PodBox: output rate " + samplerate + " -> " + rate);
-        AudioTrack newtrack;
-        int size = chunkSizeFor(rate);
-        try {
-            newtrack = createTrack(rate, size);
-        } catch (Exception e) {
-            Logger.e("PodBox: no AudioTrack at " + rate + " Hz: " + e);
-            return;
-        }
-        newtrack.setStereoVolume(curpcmvolume, curpcmvolume);
-        synchronized (this)
-        {
-            AudioTrack old = track;
-            try {
-                old.stop();
-            } catch (IllegalStateException e) { }
-            if (retired != null)
-                retired.release();
-            retired = old;
-            samplerate = rate;
-            chunkSize = size;
-            track = newtrack;
-        }
-        streamer.kick(); /* releases the old track */
-    }
-
-    public void release()
-    {
-        track.release();
-        /* stop streamer if this AudioTrack is destroyed by whomever */
-        streamer.quitAndJoin();
-    }
-
-    public int setStereoVolume(float leftVolume, float rightVolume)
-    {
-        curpcmvolume = leftVolume;
-        return track.setStereoVolume(leftVolume, rightVolume);
-    }
+    /* fine attenuation applied by the native output, 1.0 = untouched */
+    private native void nativeSetGain(float gain);
 
     private void set_volume(int volume)
     {
         Logger.d("java:set_volume("+volume+")");
+        if (!volumeSynced)
+        {
+            if (Math.round(volume / 10.0f) != postedVolume)
+            {
+                Logger.i("PodBox: ignoring startup volume " + volume / 10.0f
+                         + " dB, Android has " + postedVolume + " dB");
+                return;
+            }
+            volumeSynced = true;
+        }
         /* Rockbox 'volume' is 0..-990 deci-dB attenuation */
         float target = volume / 10.0f;
         float[] db = getStreamDb();
@@ -454,7 +206,7 @@ public class RockboxPCM
         }
 
         /* the rest (only below the lowest Android step, or less than one
-         * step) is done by the track, it can only attenuate */
+         * step) is done by the native output, it can only attenuate */
         float pcmvolume = 1.0f;
         if (streamvolume > 0)
         {
@@ -462,7 +214,7 @@ public class RockboxPCM
             if (rest < 0)
                 pcmvolume = (float)Math.pow(10.0, rest / 20.0);
         }
-        setStereoVolume(pcmvolume, pcmvolume);
+        nativeSetGain(pcmvolume);
 
         if (streamvolume != oldstreamvolume) {
             Logger.d("java:setStreamVolume("+streamvolume+")");
@@ -485,9 +237,7 @@ public class RockboxPCM
         int streamvolume = (int)Math.ceil(maxstreamvolume * fraction);
         if (streamvolume > 0) {
             float streamfraction = (float)streamvolume / maxstreamvolume;
-            float pcmvolume =
-                (fraction / streamfraction) * pcmrange + minpcmvolume;
-            setStereoVolume(pcmvolume, pcmvolume);
+            nativeSetGain(fraction / streamfraction);
         }
 
         int oldstreamvolume = audiomanager.getStreamVolume(streamtype);
@@ -498,5 +248,4 @@ public class RockboxPCM
         }
     }
 
-    public native int nativeWrite(byte[] temp, int len);
 }

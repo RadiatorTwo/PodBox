@@ -788,7 +788,9 @@ long default_event_handler_ex(long event, void (*callback)(void *), void *parame
              * event data is available in the last button data */
             int volume = button_get_data();
             DEBUGF("SYS_VOLUME_CHANGED: %d\n", volume);
-            if (global_status.volume != volume) {
+            /* PodBox: always apply the first one, even if it matches the
+             * stored volume; the Android side waits for it (RockboxPCM) */
+            if (global_status.volume != volume || firstvolume) {
                 global_status.volume = volume;
                 if (firstvolume) {
                     setvol();
