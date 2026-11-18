@@ -1,6 +1,6 @@
 # PodBox – Projektstand
 
-Stand: 18.11.2026, `main` (github.com/RadiatorTwo/PodBox), Modernisierung abgeschlossen
+Stand: 18.11.2026 abends, `main` (github.com/RadiatorTwo/PodBox), Modernisierung abgeschlossen
 (Etappe 4: `targetSdk` 34). Auf dem Gerät installiert: 64-Bit-Build (arm64-v8a, NDK r27,
 APK per Gradle, `targetSdk` 34) als **`com.blueshark.player`** mit "Zugriff auf alle Dateien".
 Die alte App `org.rockbox` ist deinstalliert.
@@ -275,6 +275,30 @@ Rockbox kostet ohnehin nur wenige Prozent.
   3. Bildschirm-Timeout im Wiedergabe-Bildschirm kurz halten.
 - Nach dem RockboxPCM-Umbau per adb getestet: Pause und Play (auch aus dem Hintergrund).
   Track-Wechsel, Lautstärke und Stop (lange Tasten) noch mit den echten Tasten prüfen.
+
+## Stand 18.11. abends, nächste Schritte
+
+Audio-Umbau fertig bis auf DSD (vom User zurückgestellt, keine Prio): AAudio 32 Bit, Originalrate
+bis 192 kHz, 32-Bit-Pfad DSP→Ausgang (Fix 23), Halbband 2:1 (Fix 24), natives Display (Fix 25).
+Alles gepusht (`516aa192a5`). Auf dem Gerät installiert ist dieser Stand.
+
+Vom User zu testen (per adb nicht möglich):
+1. Lautsprecher mit AAudio (Kopfhörer stecken seit 18.11. morgens)
+2. Kopfhörer während der Wiedergabe ausstecken (Ausgang sollte neu öffnen)
+3. ANR: Bildschirm aus, sofort "unten", nach 10 s an (siehe unten)
+4. Wärme im Alltag nach Abkühlen messen
+5. Anhören: 24-Bit-Dateien, MP3, Crossfade
+
+Vom User zu entscheiden:
+- WPS-Scrollen: 12,5 Bilder/s durch die Albumzeile, surfaceflinger 8–9 % eines Kerns. Optionen:
+  langsamer scrollen, im WPS nicht scrollen, kürzeres Bildschirm-Timeout im WPS.
+- Testordner löschen (`/sdcard/Music/PodBoxTest`, SD `Music/0_PodBoxTest`), wenn fertig getestet.
+- Optional: Rockbox als Launcher.
+
+Test-Hilfen: `/data/local/tmp/cpu.sh <s>` (CPU von PodBox/surfaceflinger/audioserver, Werte x10
+= Promille eines Kerns) und `/data/local/tmp/thr.sh <s>` (pro Thread) liegen auf dem Gerät,
+Aufruf `MSYS_NO_PATHCONV=1 adb shell sh /data/local/tmp/cpu.sh 20`. Bit-Prüfungen liefen über
+ein vorübergehendes Spitzenwert-Log in `fill()` von `pcm-android.c` (nicht committet).
 
 ## Offene Fragen an den User (Stand 17.11.)
 
