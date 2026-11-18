@@ -313,7 +313,8 @@ per adb nicht auslösen.
       nach den Tests löschen und Datenbank aktualisieren. Dazu auf der SD-Karte
       `/storage/FEF0-07FF/Music/0_PodBoxTest` (16-Bit-FLAC, 24-Bit/96-kHz-Sinus-WAV, Fix 23;
       1-kHz- und 120-kHz-Ton mit 352,8 kHz, Fix 24)
-- [ ] Leeren Ordner `F:\!Code2\PodBox\rockbox` löschen (war beim Umzug gesperrt)
-- [ ] Wiedergabezähler/Statistiken mit der Datenbank testen (sollten nach Fix 11 gehen)
+- [x] Wiedergabezähler/Statistiken: gehen (18.11. getestet, Titel aus dem Datei-Browser landet nach
+      > 15 s unter "Kürzlich gespielt", übersteht Neustart). Voraussetzung: "Laufzeitdaten sammeln"
+      (`gather runtime data: on`, Rockbox-Standard ist aus), auf dem Gerät jetzt eingeschaltet.
 - [ ] Datenbank mit großer Bibliothek testen (Scan-Dauer, Speicher)
 - [ ] Optional: Rockbox als Launcher (HOME-Intent), eigenes Theme
