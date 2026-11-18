@@ -147,8 +147,7 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     hängen, bis eine andere Rate angefordert wird. Deshalb meldet PodBox nur Raten bis 192 kHz;
     Dateien darüber halbiert Rockbox exakt 2:1 (352,8 -> 176,4, 384 -> 192,
     `audio_guess_frequency()` in `apps/playback.c`), statt wie bisher auf 44,1 kHz zu fallen.
-    Rockbox' Resampler filtert dabei nicht (lineare Interpolation), ein Halbband-Filter fehlt
-    noch. Während der Tests zeigte Rockbox einmal eine Panic (Text unbekannt), vermutlich durch
+    Gefiltert wird das seit Fix 24 mit einem Halbband-Filter. Während der Tests zeigte Rockbox einmal eine Panic (Text unbekannt), vermutlich durch
     den hängenden 384-kHz-Ausgang; dieser Weg ist jetzt ausgeschlossen.
 22. **Lautstärke beim Start auf 100:** Rockbox setzte beim Start zuerst seine eigene gespeicherte
     Lautstärke (nach Datenverlust der Standardwert 0 dB) und gab sie an Android weiter, bevor der
@@ -177,6 +176,14 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     Bekannte Grenze: Die Visualisierungs-Plugins (fft, oscilloscope, vu_meter) lesen den
     Wiedergabekanal als 16 Bit und zeigen bei Rockbox-Wiedergabe Unsinn. Ungetestet: Crossfade,
     Sprachausgabe/Pieptöne während der Wiedergabe.
+24. **Halbband-Filter für exakt 2:1:** Rockbox' Resampler ist eine 4-Punkt-Hermite-Interpolation
+    ohne Tiefpass; beim Halbieren der Rate spiegelte sich alles oberhalb der neuen
+    Nyquist-Frequenz zurück. Bei exakt doppelter Eingangsrate (352,8 → 176,4, 384 → 192 kHz,
+    mit fester Ausgaberate auch 88,2/96 → 44,1/48 kHz) nimmt der Audio-DSP jetzt einen
+    Halbband-FIR-Dezimator (`resample.c`, 95 Taps, Kaiser-Fenster, Koeffizienten Q31, 64-Bit-
+    Akkumulator): flach (< 0,01 dB) bis 0,216 × Eingangsrate, ab 0,284 × Eingangsrate unter
+    −97 dB, Verzögerung 47 Eingangssamples. Gemessen mit 352,8-kHz/24-Bit-Testtönen: 1 kHz
+    kommt unverändert an, 120 kHz (würde sonst auf 56,4 kHz gespiegelt) liegt bei −113 dB.
 ## Modernisierung
 
 | Etappe | Stand |
@@ -293,7 +300,8 @@ per adb nicht auslösen.
 
 - [ ] Testordner `/sdcard/Music/PodBoxTest` (MP3/FLAC/AAC/OGG/Opus) liegt wieder auf dem Gerät,
       nach den Tests löschen und Datenbank aktualisieren. Dazu auf der SD-Karte
-      `/storage/FEF0-07FF/Music/0_PodBoxTest` (16-Bit-FLAC, 24-Bit/96-kHz-Sinus-WAV, Fix 23)
+      `/storage/FEF0-07FF/Music/0_PodBoxTest` (16-Bit-FLAC, 24-Bit/96-kHz-Sinus-WAV, Fix 23;
+      1-kHz- und 120-kHz-Ton mit 352,8 kHz, Fix 24)
 - [ ] Leeren Ordner `F:\!Code2\PodBox\rockbox` löschen (war beim Umzug gesperrt)
 - [ ] Wiedergabezähler/Statistiken mit der Datenbank testen (sollten nach Fix 11 gehen)
 - [ ] Datenbank mit großer Bibliothek testen (Scan-Dauer, Speicher)

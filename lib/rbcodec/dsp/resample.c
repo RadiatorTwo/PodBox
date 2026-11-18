@@ -55,7 +55,87 @@ static struct resample_data
     unsigned int frequency_out;     /* Resampler output samplerate */
     struct dsp_buffer resample_buf; /* Buffer descriptor for resampled data */
     int32_t *resample_out_p[2];     /* Actual output buffer pointers */
+    bool halfband;                  /* PodBox: exact 2:1, see below */
 } resample_data[DSP_COUNT] IBSS_ATTR;
+
+/**
+ * PodBox: exact 2:1 downsampling (352.8 -> 176.4 kHz, 384 -> 192 kHz, or
+ * 88.2/96 -> 44.1/48 kHz with a fixed output rate) with a half-band FIR
+ * instead of the Hermite interpolation, which does not filter and lets
+ * everything above the new Nyquist frequency fold back.
+ *
+ * 95 taps, Kaiser window (beta 10.06): flat (< 0.01 dB) up to 0.216 of the
+ * input rate, -6 dB at 0.25, below -97 dB from 0.284 on. Only every other
+ * tap is non-zero; the centre tap is 0.5, the others are listed here
+ * (offsets 1, 3, 5, ... 47 from the centre, Q31, sum = 0.5 for unity gain).
+ * Only for the audio DSP (stereo).
+ */
+#define HB_TAPS 95
+#define HB_HIST (HB_TAPS - 1)
+static const int32_t hb_coefs[(HB_TAPS + 1) / 4] =
+{
+    682089429, -223462110, 129504240, -87791231, 63657206, -47678004,
+    36245306, -27680834, 21093533, -15959124, 11940836, -8804798,
+    6377219, -4521716, 3126990, -2100050, 1362431, -848021,
+    501689, -278257, 141564, -63503, 22990, -4874,
+};
+
+/* input history + new input of one call, per channel */
+static int32_t hb_buf[2][HB_HIST + 2 * RESAMPLE_BUF_COUNT];
+static int hb_fill; /* samples in hb_buf[ch] (same for both channels) */
+
+static void halfband_flush(void)
+{
+    memset(hb_buf, 0, sizeof (hb_buf));
+    hb_fill = HB_HIST; /* start with silence as history */
+}
+
+/* Consumes up to 2 * dst->bufcount input samples and writes one output
+   sample for every two; returns the number of input samples consumed */
+static int resample_halfband(struct dsp_buffer *src, struct dsp_buffer *dst)
+{
+    int ch = src->format.num_channels - 1;
+    int count = MIN(src->remcount, 2 * dst->bufcount);
+    int fill = hb_fill;
+    int outcount = 0;
+
+    do
+    {
+        int32_t *x = hb_buf[ch];
+        int32_t *d = dst->p32[ch];
+        int n = fill;
+
+        memcpy(x + n, src->p32[ch], count * sizeof (int32_t));
+        n += count;
+
+        /* window x[j .. j + HB_TAPS - 1], centre x[j + HB_HIST/2] */
+        int j;
+        for (j = 0; j + HB_TAPS <= n; j += 2)
+        {
+            const int32_t *c = x + j + HB_HIST / 2;
+            int64_t acc = (int64_t)c[0] << 30; /* centre tap 0.5 */
+
+            for (int k = 0; k < (HB_TAPS + 1) / 4; k++)
+            {
+                int o = 2 * k + 1;
+                acc += (int64_t)hb_coefs[k] * ((int64_t)c[-o] + c[o]);
+            }
+
+            *d++ = (int32_t)((acc + (1LL << 30)) >> 31);
+        }
+
+        outcount = d - dst->p32[ch];
+
+        /* keep what the next windows need */
+        memmove(x, x + j, (n - j) * sizeof (int32_t));
+        if (ch == 0)
+            hb_fill = n - j;
+    }
+    while (--ch >= 0);
+
+    dst->remcount = outcount;
+    return count;
+}
 
 /* Actual worker function. Implemented here or in target assembly code. */
 int resample_hermite(struct resample_data *data, struct dsp_buffer *src,
@@ -72,6 +152,8 @@ static void resample_flush(struct dsp_proc_entry *this)
     struct resample_data *data = (void *)this->data;
     data->resample_buf.remcount = 0;
     resample_flush_data(data);
+    if (data->halfband)
+        halfband_flush();
 }
 
 static bool resample_new_delta(struct resample_data *data,
@@ -83,6 +165,12 @@ static bool resample_new_delta(struct resample_data *data,
     data->frequency = frequency;
     data->frequency_out = fout;
     data->delta = fp_div(frequency, fout, 16);
+
+    /* PodBox: exact 2:1 on the audio DSP -> half-band decimator */
+    bool hb = data == &resample_data[CODEC_IDX_AUDIO] && frequency == 2 * fout;
+    if (hb && !data->halfband)
+        halfband_flush();
+    data->halfband = hb;
 
     if (frequency == data->frequency_out)
     {
@@ -211,7 +299,8 @@ static void resample_process(struct dsp_proc_entry *this,
     {
         dst->bufcount = RESAMPLE_BUF_COUNT;
 
-        int consumed = resample_hermite(data, src, dst);
+        int consumed = data->halfband ?
+            resample_halfband(src, dst) : resample_hermite(data, src, dst);
 
         /* Advance src by consumed amount */
         if (consumed > 0)
