@@ -91,6 +91,14 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     `PERFORMANCE_MODE_POWER_SAVING`, damit läuft er über `deep_buffer` (2048 Frames).
     Rockbox selbst braucht nur 2–7 % eines Kerns. Es bleiben ca. 20 % eines Kerns im
     Android-Mixer für das Umrechnen von 44,1 auf 48 kHz (Lautsprecher läuft fest mit 48 kHz).
+16. **Zwei Lautstärken, falsche dB-Anzeige:** Rockbox hat seine −99…0 dB gleichmäßig auf die
+    100 Android-Stufen verteilt. Die Stufen folgen aber schon einer Kurve (Stufe 1 = −58 dB,
+    20 = −40 dB, 60 = −17 dB, 100 = 0 dB), deshalb waren "−79 dB" in Wirklichkeit etwa −39 dB,
+    und schon −98 dB war hörbar. Jetzt liest `RockboxPCM` die Kurve per `getStreamVolumeDb()`,
+    wählt die passende Android-Stufe und regelt den Rest über den AudioTrack (unter −58 dB).
+    −99 dB = Android-Stufe 0 = stumm. Ändert sich die Android-Lautstärke (Rad bei Bildschirm
+    aus), übernimmt Rockbox den echten dB-Wert der Stufe. Getestet: Android 0/40/60 →
+    Rockbox −99/−28/−17 dB, Rockbox-Schritte landen auf der passenden Stufe.
 ## Modernisierung
 
 | Etappe | Stand |
