@@ -105,6 +105,12 @@ struct mixer_play_cbs {
 void mixer_channel_play_data(enum pcm_mixer_channel channel,
                              const struct mixer_play_cbs* cbs,
                              const void *start, size_t size);
+/* PodBox: frame_bytes 4 = int16 stereo (as above), 8 = int32 stereo, full
+   scale 2^31 (HAVE_PCM_32BIT_PATH only, otherwise always 4) */
+void mixer_channel_play_data_fmt(enum pcm_mixer_channel channel,
+                                 const struct mixer_play_cbs* cbs,
+                                 const void *start, size_t size,
+                                 unsigned int frame_bytes);
 
 /* Pause or resume a channel (when started) */
 void mixer_channel_play_pause(enum pcm_mixer_channel channel, bool play);

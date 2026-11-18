@@ -84,6 +84,11 @@
  * up to 384 kHz), on the speaker Android's mixer converts it. */
 #define HW_SAMPR_CAPS SAMPR_CAP_ALL_192
 
+/* PodBox: playback goes from the DSP to the output as int32 frames (full
+ * scale 2^31): pcmbuf, crossfade and mixer work in 32 bits, voice, beeps and
+ * plugin channels stay 16 bits and are scaled up in the mixer. */
+#define HAVE_PCM_32BIT_PATH
+
 #define CONFIG_BATTERY_MEASURE PERCENTAGE_MEASURE
 
 #define NO_LOW_BATTERY_SHUTDOWN

@@ -160,10 +160,70 @@ void sample_output_dithered(struct sample_io_data *this,
     while (--count > 0);
 }
 
+/* PodBox: 32-bit output. The internal format has full scale at
+ * 1 << frac_bits; it is clipped to that and moved up to full scale 2^31,
+ * so nothing below 16 bits gets lost (24-bit files, EQ, ReplayGain).
+ * No dithering: 28 or more significant bits are left. */
+static FORCE_INLINE int32_t output_sample_32(int32_t s, int32_t lo,
+                                             int32_t hi, int shift)
+{
+    s = s < lo ? lo : (s > hi ? hi : s);
+    return (int32_t)((uint32_t)s << shift);
+}
+
+static void sample_output_mono_32(struct sample_io_data *this,
+                                  struct dsp_buffer *src,
+                                  struct dsp_buffer *dst)
+{
+    int count = this->outcount;
+    const int32_t *s0 = src->p32[0];
+    int32_t *d = dst->p32out;
+    int fb = MIN(src->format.frac_bits, 31);
+    int shift = 31 - fb;
+    int32_t hi = (int32_t)((1LL << fb) - 1), lo = (int32_t)-(1LL << fb);
+
+    do
+    {
+        int32_t lr = output_sample_32(*s0++, lo, hi, shift);
+        *d++ = lr;
+        *d++ = lr;
+    }
+    while (--count > 0);
+}
+
+static void sample_output_stereo_32(struct sample_io_data *this,
+                                    struct dsp_buffer *src,
+                                    struct dsp_buffer *dst)
+{
+    int count = this->outcount;
+    const int32_t *s0 = src->p32[0];
+    const int32_t *s1 = src->p32[1];
+    int32_t *d = dst->p32out;
+    int fb = MIN(src->format.frac_bits, 31);
+    int shift = 31 - fb;
+    int32_t hi = (int32_t)((1LL << fb) - 1), lo = (int32_t)-(1LL << fb);
+
+    do
+    {
+        *d++ = output_sample_32(*s0++, lo, hi, shift);
+        *d++ = output_sample_32(*s1++, lo, hi, shift);
+    }
+    while (--count > 0);
+}
+
 /* Initialize the output function for settings and format */
 void dsp_sample_output_format_change(struct sample_io_data *this,
                                      struct sample_format *format)
 {
+    if (this->output_depth > 16)
+    {
+        DSP_PRINT_FORMAT(DSP Output 32, *format);
+        this->output_samples = format->num_channels == 1 ?
+            sample_output_mono_32 : sample_output_stereo_32;
+        this->output_version = format->version;
+        return;
+    }
+
     static const sample_output_fn_type fns[2][2] =
     {
         { sample_output_mono,        /* DC-biased quantizing */

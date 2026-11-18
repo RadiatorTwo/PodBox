@@ -523,6 +523,11 @@ static void run_codec(void)
 
     trigger_cpu_boost();
     dsp_configure(ci.dsp, DSP_SET_OUT_FREQUENCY, mixer_get_frequency());
+#ifdef HAVE_PCM_32BIT_PATH
+    /* PodBox: pcmbuf takes int32 frames (DSP_RESET at codec load and
+       plugins using this DSP set 16 again) */
+    dsp_configure(ci.dsp, DSP_SET_OUTPUT_DEPTH, 32);
+#endif
 
     if (!encoder)
     {

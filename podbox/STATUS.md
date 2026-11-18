@@ -124,8 +124,7 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     Kopfhörer: 44,1/48/88,2/96/176,4/192 kHz gehen unverändert bis zur Hardware
     (`wired DIRECT source N -> hardware N`), 192 kHz ohne Underruns. Last bei 192 kHz: Rockbox
     6 %, audioserver 3,6 %, Audio-HAL 16,6 %. Am Lautsprecher rechnet Android um (ungetestet).
-    Grenze: Rockbox gibt weiterhin 16 Bit aus (Decoder/DSP/Mixer); 24-Bit-Ausgabe wäre der
-    nächste Umbau.
+    Die 16-Bit-Grenze ist mit Fix 23 weg.
 19. **Falsche Texte nach Feature-Änderung:** `tools/genlang` cachte die String-IDs in
     `apps/lang/english.list` ohne Rücksicht auf die Target-Features. Nach dem Aktivieren von
     `play_frequency` hatten die `.lng`-Dateien deshalb die alte Nummerierung (z. B.
@@ -138,9 +137,8 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     `RockboxPCM` regelt nur noch Lautstärke und Foreground-Service. Am Kopfhörer landet das als
     `HAL format: PCM_32_BIT` auf dem Direktausgang. Getrennte oder hängende Ausgänge
     (Kopfhörer ausgesteckt, `AAUDIO_ERROR_DISCONNECTED`, 600 ms ohne Abnahme) werden neu
-    geöffnet, Rockbox blockiert dann nicht. Rockbox liefert intern weiterhin 16 Bit (wird
-    bitgenau in die oberen 16 Bit geschoben), der 32-Bit-Datenpfad durch DSP/Puffer ist der
-    nächste Schritt.
+    geöffnet, Rockbox blockiert dann nicht. Seit Fix 23 kommen die Daten von Rockbox selbst
+    schon als 32 Bit.
 21. **Hardware-Grenze 192 kHz:** Der Direktpfad zum DAC läuft höchstens mit 192 kHz.
     352,8 kHz rechnet der HAL selbst auf 192 kHz um (`source 352800 -> hardware 192000`),
     bei 384 kHz liefert der HAL nur Fehler (`pcm_get_htimestamp fail`) und nimmt keine Daten ab.
@@ -156,6 +154,29 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     Lautstärke (nach Datenverlust der Standardwert 0 dB) und gab sie an Android weiter, bevor der
     Android-Wert ankam. Jetzt ignoriert `RockboxPCM` Rockbox-Lautstärken, bis Rockbox den
     Android-Wert übernommen hat, und `apps/misc.c` übernimmt den ersten Android-Wert immer.
+23. **32-Bit-Datenpfad von DSP bis Ausgang:** Rockbox hat nach dem DSP alles auf 16 Bit
+    gerundet (gedithert), pcmbuf, Crossfade und Mixer arbeiteten mit 16-Bit-Frames. Jetzt
+    (`HAVE_PCM_32BIT_PATH` in `config/android.h`):
+    - DSP: neue Einstellung `DSP_SET_OUTPUT_DEPTH` (16/32). Bei 32 schreibt er int32-Frames
+      (Vollausschlag 2^31) ohne Rundung (`dsp_sample_output.c`). Der Codec-Thread setzt 32 beim
+      Start eines Codecs, `DSP_RESET` setzt wieder 16 (Plugins wie midiplay/mpegplayer, die den
+      Audio-DSP selbst nutzen, bekommen also weiter 16 Bit).
+    - pcmbuf: 8 Byte pro Frame, Crossfade mischt in 64 Bit und begrenzt auf 32 Bit. Die
+      Mindestgröße gilt jetzt für 192 kHz (3 s = 4,6 MB), deshalb hat Android jetzt 32 MB
+      Audiopuffer statt 8 MB (`memory=32` in `tools/configure`, `build.sh` konfiguriert dann neu).
+    - Mixer: Ausgabe int32. Jeder Kanal hat seine Framegröße (`mixer_channel_play_data_fmt()`,
+      pcmbuf spielt mit 8, alles andere wie Sprachausgabe, Pieptöne und Plugins weiter mit 4).
+      16-Bit-Kanäle werden beim Mischen hochskaliert. Peakmeter rechnet 32-Bit-Kanäle um.
+    - `pcm-android.c` übernimmt die int32-Frames ohne Umrechnung (bei voller Lautstärke per
+      `memcpy`), Feinabschwächung unter −58 dB in 2.30-Festkomma.
+    Gemessen im Treiber (vorübergehendes Diagnose-Log): 16-Bit-FLAC kommt bitgenau an (untere
+    16 Bit immer 0), eine 24-Bit/96-kHz-WAV exakt mit ihren 24 Bit (Spitzenwert `0x1FFFFF00`
+    = Dateiwert × 256), MP3 (libmad) jetzt mit 29 statt 16 Bit. Ausgang 96 kHz,
+    `HAL format: PCM_32_BIT`. Pause/Fortsetzen und Ratenwechsel 96 → 44,1 kHz gehen.
+    Last unverändert (Prozess ca. 6 % eines Kerns bei Bildschirm an, Browser).
+    Bekannte Grenze: Die Visualisierungs-Plugins (fft, oscilloscope, vu_meter) lesen den
+    Wiedergabekanal als 16 Bit und zeigen bei Rockbox-Wiedergabe Unsinn. Ungetestet: Crossfade,
+    Sprachausgabe/Pieptöne während der Wiedergabe.
 ## Modernisierung
 
 | Etappe | Stand |
@@ -222,15 +243,15 @@ Rockbox kostet ohnehin nur wenige Prozent.
 - Dual-DAC ES9018 (laut User), nur am Kopfhörer. Mixport `wired_headphone_direct` (DIRECT, PCM 16/32 Bit, 8–384 kHz) nur für
   Kopfhörer; Hersteller-Property `sys.audio.wired_direct_focus_uid` zeigt auf die App mit Fokus.
   Lautsprecher: `primary`/`deep_buffer`, 44,1/48 kHz, Mixer läuft mit 48 kHz.
-- Rockbox: Decoder/DSP/Mixer 16 Bit, Raten bis 192 kHz möglich (`SAMPR_CAP_ALL_192`,
-  „Wiedergabefrequenz: Auto“), Android-Port derzeit fest 44,1 kHz. Natives DSD/384 kHz/24 Bit
-  nur mit tiefem Umbau.
+- Rockbox: DSP, pcmbuf und Mixer mit 32 Bit (Fix 23), Originalrate bis 192 kHz (Fix 18).
+  Offen: DSD und Raten über 192 kHz (Hardware-Grenze, Fix 21).
 - Größter Rest bei Bildschirm an (Stand 18.11., Direktpfad): Rockbox-Thread ca. 11,6 % und
   surfaceflinger ca. 9,8 %. Der WPS zeichnet wegen der scrollenden Albumzeile ca. 12-mal pro
   Sekunde neu, jedes Mal als Vollbild-Kopie (`RockboxFramebuffer.update()`). Nächster Ansatz:
   nur den geänderten Bereich kopieren/zeichnen, Scrollen ggf. drosseln.
 - Mögliche nächste Schritte für Effizienz/Klang (noch nicht entschieden):
-  1. ~~Kopfhörer: Originalrate bis 192 kHz~~ erledigt (Fix 18). Offen: 24-Bit-Ausgabe.
+  1. ~~Kopfhörer: Originalrate bis 192 kHz~~ erledigt (Fix 18), ~~24-Bit-Ausgabe~~ erledigt
+     (Fix 23).
   2. Lautsprecher: Rockbox gibt 48 kHz aus (eigener, billiger Resampler). Klang bei 44,1-kHz-
      Dateien vom User anhören lassen.
   3. Bildschirm-Timeout im Wiedergabe-Bildschirm kurz halten.
@@ -271,7 +292,8 @@ per adb nicht auslösen.
 ## Offene Punkte
 
 - [ ] Testordner `/sdcard/Music/PodBoxTest` (MP3/FLAC/AAC/OGG/Opus) liegt wieder auf dem Gerät,
-      nach den Tests löschen und Datenbank aktualisieren
+      nach den Tests löschen und Datenbank aktualisieren. Dazu auf der SD-Karte
+      `/storage/FEF0-07FF/Music/0_PodBoxTest` (16-Bit-FLAC, 24-Bit/96-kHz-Sinus-WAV, Fix 23)
 - [ ] Leeren Ordner `F:\!Code2\PodBox\rockbox` löschen (war beim Umzug gesperrt)
 - [ ] Wiedergabezähler/Statistiken mit der Datenbank testen (sollten nach Fix 11 gehen)
 - [ ] Datenbank mit großer Bibliothek testen (Scan-Dauer, Speicher)

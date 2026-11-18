@@ -32,7 +32,16 @@
    before the last samples are sent to the codec and so things are done in
    parallel (as much as possible) with sending-out data. */
 
-static unsigned int mix_frame_size = MIX_FRAME_SAMPLES*4;
+#ifdef HAVE_PCM_32BIT_PATH
+/* PodBox: the downmix (= what the PCM driver gets) is int32 stereo, full
+   scale 2^31. Each channel is int16 (default) or int32 stereo, see
+   mixer_channel_play_data_fmt(). */
+#define MIX_OUT_FRAME_BYTES 8
+#else
+#define MIX_OUT_FRAME_BYTES 4
+#endif
+
+static unsigned int mix_frame_size = MIX_FRAME_SAMPLES*MIX_OUT_FRAME_BYTES;
 
 /* Define this to nonzero to add a marker pulse at each frame start */
 #define FRAME_BOUNDARY_MARKERS 0
@@ -47,6 +56,7 @@ struct mixer_channel
     enum channel_status status;             /* Playback status */
     uint32_t amplitude;                     /* Amp. factor: 0x0000 = mute, 0x10000 = unity */
     const struct mixer_buffer_cbs* buf_cbs; /* Callback for new buffer */
+    unsigned int frame_bytes;               /* 4 = int16, 8 = int32 stereo */
 };
 
 #if (defined(HW_HAVE_192) || defined(HW_HAVE_176))
@@ -62,7 +72,8 @@ struct mixer_channel
 /* Because of the double-buffering, playback is always from here, otherwise a
    mechanism for the channel callbacks not to free buffers too early would be
    needed (if we _really_ want it and it's worth it, we _can_ do that ;-) ) */
-static uint32_t downmix_buf[2][MAX_MIX_FRAME_SAMPLES] DOWNMIX_BUF_IBSS MEM_ALIGN_ATTR;
+static uint32_t downmix_buf[2][MAX_MIX_FRAME_SAMPLES * MIX_OUT_FRAME_BYTES / 4]
+    DOWNMIX_BUF_IBSS MEM_ALIGN_ATTR;
 static int downmix_index = 0;   /* Which downmix_buf? */
 static size_t next_size = 0;    /* Size of buffer to play next time */
 
@@ -83,11 +94,61 @@ static unsigned int idle_counter = 0;
 
 static inline unsigned int max_idle_frames(void)
 {
-    return SAMPR_NUM(pcm_get_frequency()) * 3 / (mix_frame_size / 4);
+    return SAMPR_NUM(pcm_get_frequency()) * 3 /
+           (mix_frame_size / MIX_OUT_FRAME_BYTES);
 }
 
+#ifdef HAVE_PCM_32BIT_PATH
+#ifndef mixer_buffer_callback_exit
+#define mixer_buffer_callback_exit() do{}while(0)
+#endif
+
+static FORCE_INLINE int32_t clip_sample_32(int64_t s)
+{
+    return s < INT32_MIN ? INT32_MIN : (s > INT32_MAX ? INT32_MAX : (int32_t)s);
+}
+
+/* Write (first) or add one channel's frames to the 32-bit downmix */
+static void mix_channel_32(int32_t *out, const struct mixer_channel *chan,
+                           size_t frames, bool first)
+{
+    const uint32_t amp = chan->amplitude;
+    size_t n = frames * 2;
+
+    if (chan->frame_bytes == 8)
+    {
+        const int32_t *s = chan->start;
+
+        if (first && amp == MIX_AMP_UNITY)
+            memcpy(out, s, n * sizeof (int32_t));
+        else if (first)
+            while (n--)
+                *out++ = (int32_t)(((int64_t)*s++ * amp) >> 16);
+        else if (amp == MIX_AMP_UNITY)
+            for (; n--; out++)
+                *out = clip_sample_32((int64_t)*out + *s++);
+        else
+            for (; n--; out++)
+                *out = clip_sample_32((int64_t)*out +
+                                      (((int64_t)*s++ * amp) >> 16));
+    }
+    else
+    {
+        /* int16: amplitude is 16.16, so s * amp is already 2^31 scale */
+        const int16_t *s = chan->start;
+
+        if (first)
+            while (n--)
+                *out++ = (int32_t)((int64_t)*s++ * amp);
+        else
+            for (; n--; out++)
+                *out = clip_sample_32((int64_t)*out + (int64_t)*s++ * amp);
+    }
+}
+#else
 /** Mixing routines, CPU optmized **/
 #include "asm/pcm-mixer.c"
+#endif
 
 /** Private generic routines **/
 
@@ -131,6 +192,103 @@ static inline void chan_call_buffer_hook(struct mixer_channel *chan)
         chan->buf_cbs->next_buffer(chan->start, chan->size);
 }
 
+#ifdef HAVE_PCM_32BIT_PATH
+/* Buffering callback, 32-bit downmix: like the one below, but counts in
+   frames since the channels may have different frame sizes */
+static enum pcm_dma_status MIXER_CALLBACK_ICODE
+mixer_buffer_callback(enum pcm_dma_status status)
+{
+    if (status != PCM_DMAST_STARTED)
+        return status;
+
+    downmix_index ^= 1; /* Next buffer */
+
+    int32_t *mixbuf = (int32_t *)downmix_buf[downmix_index];
+    const size_t frame_frames = mix_frame_size / MIX_OUT_FRAME_BYTES;
+    size_t done = 0; /* frames in this frame so far */
+    struct mixer_channel **chan_p;
+
+    next_size = 0;
+
+fill_frame:
+    {
+        size_t mixframes = frame_frames - done;
+        chan_p = active_channels;
+
+        while (*chan_p)
+        {
+            struct mixer_channel *chan = *chan_p;
+            chan->start += chan->last_size;
+            chan->size -= chan->last_size;
+            chan->last_size = 0;
+
+            if (chan->size < chan->frame_bytes)
+            {
+                chan->size = 0; /* drop a partial frame */
+
+                if (chan->play_cbs && chan->play_cbs->get_more)
+                {
+                    chan->play_cbs->get_more(&chan->start, &chan->size);
+                    ALIGN_AUDIOBUF(chan->start, chan->size);
+                    chan->size -= chan->size % chan->frame_bytes;
+                }
+
+                if (!(chan->start && chan->size))
+                {
+                    /* Channel is stopping */
+                    channel_stopped(chan);
+                    continue;
+                }
+
+                chan_call_buffer_hook(chan);
+            }
+
+            /* Channel with least data remaining determines the downmix
+               size */
+            size_t frames = chan->size / chan->frame_bytes;
+            if (frames < mixframes)
+                mixframes = frames;
+
+            chan_p++;
+        }
+
+        chan_p = active_channels;
+
+        if (LIKELY(*chan_p))
+        {
+            bool first = true;
+            struct mixer_channel *chan;
+
+            while ((chan = *chan_p++))
+            {
+                mix_channel_32(mixbuf + done * 2, chan, mixframes, first);
+                chan->last_size = mixframes * chan->frame_bytes;
+                first = false;
+            }
+
+            done += mixframes;
+            next_size = done * MIX_OUT_FRAME_BYTES;
+
+            if (done < frame_frames)
+                goto fill_frame; /* Still space remaining in this frame */
+        }
+        else if (idle_counter++ < max_idle_frames())
+        {
+            /* Pad incomplete frames with silence */
+            if (idle_counter <= 3)
+                memset(mixbuf + done * 2, 0,
+                       (frame_frames - done) * MIX_OUT_FRAME_BYTES);
+
+            next_size = mix_frame_size;
+        }
+        /* else silence period ran out - go to sleep */
+    }
+
+    mixer_buffer_callback_exit();
+
+    return PCM_DMAST_OK;
+}
+#else /* !HAVE_PCM_32BIT_PATH */
 /* Buffering callback - calls sub-callbacks and mixes the data for next
    buffer to be sent from mixer_pcm_callback() */
 static enum pcm_dma_status MIXER_CALLBACK_ICODE
@@ -261,6 +419,7 @@ fill_frame:
 
     return PCM_DMAST_OK;
 }
+#endif /* HAVE_PCM_32BIT_PATH */
 
 /* Start PCM driver if it's not currently playing */
 static void mixer_start_pcm(void)
@@ -339,7 +498,7 @@ static  void mixer_handle_sampr_change(unsigned int sampr)
     else
         mix_frame_size = 1;
 
-    mix_frame_size *= MIX_FRAME_SAMPLES * 4;
+    mix_frame_size *= MIX_FRAME_SAMPLES * MIX_OUT_FRAME_BYTES;
 }
 
 /** Public interfaces **/
@@ -349,7 +508,21 @@ void mixer_channel_play_data(enum pcm_mixer_channel channel,
                              const struct mixer_play_cbs* cbs,
                              const void *start, size_t size)
 {
+    mixer_channel_play_data_fmt(channel, cbs, start, size, 4);
+}
+
+/* Same with the channel's frame size: 4 = int16 stereo, 8 = int32 stereo
+   (only with HAVE_PCM_32BIT_PATH) */
+void mixer_channel_play_data_fmt(enum pcm_mixer_channel channel,
+                                 const struct mixer_play_cbs* cbs,
+                                 const void *start, size_t size,
+                                 unsigned int frame_bytes)
+{
     struct mixer_channel *chan = &channels[channel];
+
+#ifndef HAVE_PCM_32BIT_PATH
+    frame_bytes = 4;
+#endif
 
     ALIGN_AUDIOBUF(start, size);
 
@@ -377,6 +550,8 @@ void mixer_channel_play_data(enum pcm_mixer_channel channel,
         chan->size = size;
         chan->last_size = 0;
         chan->play_cbs = cbs;
+        chan->frame_bytes = frame_bytes;
+        chan->size -= chan->size % frame_bytes;
 
         mixer_activate_channel(chan);
         chan_call_buffer_hook(chan);
@@ -470,7 +645,7 @@ const void * mixer_channel_get_buffer(enum pcm_mixer_channel channel, int *count
     /* Still same buffer? */
     if (buf == buf2)
     {
-        *count = size >> 2;
+        *count = size / (channels[channel].frame_bytes ?: 4);
         return buf;
     }
     /* else can't be sure buf and size are related */
@@ -488,7 +663,7 @@ void mixer_channel_calculate_peaks(enum pcm_mixer_channel channel,
 
     pcm_do_peak_calculation(peaks,
                             channels[channel].status == CHANNEL_PLAYING,
-                            addr, count);
+                            addr, count, channels[channel].frame_bytes);
 }
 
 /* Adjust channel pointer by a given offset to support movable buffers */

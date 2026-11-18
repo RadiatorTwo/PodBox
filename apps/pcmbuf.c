@@ -25,6 +25,7 @@
 #include <kernel.h>
 #include "pcm.h"
 #include "pcm_mixer.h"
+#include "pcm_sampr.h"
 #include "pcmbuf.h"
 #include "dsp-util.h"
 #include "playback.h"
@@ -41,8 +42,20 @@
 #include "audio.h"
 #include "voice_thread.h"
 
+#ifdef HAVE_PCM_32BIT_PATH
+/* PodBox: 2 channels * 4 bytes/sample, interleaved, full scale 2^31 */
+typedef int32_t pcmbuf_sample_t;
+#define PCMBUF_SAMPLE_SIZE   (2 * 4)
+static FORCE_INLINE int32_t pcmbuf_clip_sample(int64_t s)
+{
+    return s < INT32_MIN ? INT32_MIN : (s > INT32_MAX ? INT32_MAX : (int32_t)s);
+}
+#else
 /* 2 channels * 2 bytes/sample, interleaved */
+typedef int16_t pcmbuf_sample_t;
 #define PCMBUF_SAMPLE_SIZE   (2 * 2)
+#define pcmbuf_clip_sample(s) clip_sample_16(s)
+#endif
 
 /* This is the target fill size of chunks on the pcm buffer
    Can be any number of samples but power of two sizes make for faster and
@@ -70,11 +83,19 @@
 /* Return data level in 1/4-second increments */
 static inline unsigned int data_level(int quarter_secs)
 {
-    return mixer_get_frequency() * quarter_secs;
+    return mixer_get_frequency() * (PCMBUF_SAMPLE_SIZE / 4) * quarter_secs;
 }
 
 /* Number of bytes played per second */
 #define BYTERATE            (mixer_get_frequency() * PCMBUF_SAMPLE_SIZE)
+
+#ifdef HAVE_PCM_32BIT_PATH
+/* PodBox: the buffer is set up once, before the rate of the first track is
+   known; size its minimum for the highest rate */
+#define ALLOC_BYTERATE      (SAMPR_192 * PCMBUF_SAMPLE_SIZE)
+#else
+#define ALLOC_BYTERATE      BYTERATE
+#endif
 
 /* 3 s of PCM need about 520 KiB at 44.1 kHz: with 4 MiB or less that is
  * missing in the file buffer (and USB mass storage can not get its buffer
@@ -82,7 +103,7 @@ static inline unsigned int data_level(int quarter_secs)
 #if MEMORYSIZE > 4
 /* Keep watermark high for large memory target - at least (2s) */
 #define PCMBUF_WATERMARK    (BYTERATE * 2)
-#define MIN_BUFFER_SIZE     (BYTERATE * 3)
+#define MIN_BUFFER_SIZE     (ALLOC_BYTERATE * 3)
 /* 1 seconds of buffer is low data */
 #define LOW_DATA            data_level(4)
 #else
@@ -860,7 +881,8 @@ void pcmbuf_play_start(void)
             .get_more = pcmbuf_pcm_callback,
             .sampr_changed = pcmbuf_sampr_callback,
         };
-        mixer_channel_play_data(PCM_MIXER_CHAN_PLAYBACK, &cbs, NULL, 0);
+        mixer_channel_play_data_fmt(PCM_MIXER_CHAN_PLAYBACK, &cbs, NULL, 0,
+                                    PCMBUF_SAMPLE_SIZE);
     }
 }
 
@@ -950,7 +972,13 @@ static inline void mixfader_step(struct mixfader *faderp)
 
 static FORCE_INLINE int32_t mixfade_sample(const struct mixfader *faderp, int32_t s)
 {
+#ifdef HAVE_PCM_32BIT_PATH
+    /* factor <= unity, so the result fits */
+    return (int32_t)(((int64_t)faderp->factor * s + MIXFADE_UNITY/2)
+                     >> MIXFADE_UNITY_BITS);
+#else
     return (faderp->factor * s + MIXFADE_UNITY/2) >> MIXFADE_UNITY_BITS;
+#endif
 }
 
 /* Cancel crossfade operation */
@@ -1032,7 +1060,7 @@ static void crossfade_mix_fade(struct mixfader *faderp, size_t size,
     if (index == INVALID_BUF_INDEX)
         return;
 
-    int16_t *inbuf = input_buf;
+    pcmbuf_sample_t *inbuf = input_buf;
 
     bool alloced = inbuf && faderp->alloc &&
                    index_chunk_offs(index, 0) == chunk_widx;
@@ -1040,7 +1068,7 @@ static void crossfade_mix_fade(struct mixfader *faderp, size_t size,
     while (size)
     {
         struct chunkdesc *desc = index_chunkdesc(index);
-        int16_t *outbuf = index_buffer(index);
+        pcmbuf_sample_t *outbuf = index_buffer(index);
 
         switch (offset)
         {
@@ -1058,7 +1086,7 @@ static void crossfade_mix_fade(struct mixfader *faderp, size_t size,
 
         size_t amount = (alloced ? PCMBUF_CHUNK_SIZE : desc->size)
                             - (index % PCMBUF_CHUNK_SIZE);
-        int16_t *chunkend = SKIPBYTES(outbuf, amount);
+        pcmbuf_sample_t *chunkend = SKIPBYTES(outbuf, amount);
 
         if (size < amount)
             amount = size;
@@ -1082,12 +1110,12 @@ static void crossfade_mix_fade(struct mixfader *faderp, size_t size,
             /* Fade the input buffer and mix into the destination chunk */
             for (size_t s = amount; s != 0; s -= PCMBUF_SAMPLE_SIZE)
             {
-                int32_t left  = outbuf[0];
-                int32_t right = outbuf[1];
+                int64_t left  = outbuf[0];
+                int64_t right = outbuf[1];
                 left  += mixfade_sample(faderp, *inbuf++);
                 right += mixfade_sample(faderp, *inbuf++);
-                *outbuf++ = clip_sample_16(left);
-                *outbuf++ = clip_sample_16(right);
+                *outbuf++ = pcmbuf_clip_sample(left);
+                *outbuf++ = pcmbuf_clip_sample(right);
                 mixfader_step(faderp);
             }
         }

@@ -38,6 +38,7 @@ static void format_change_set(struct sample_io_data *this)
 void dsp_sample_io_init(struct sample_io_data *this, unsigned int dsp_id)
 {
     this->output_sampr = DSP_OUT_DEFAULT_HZ;
+    this->output_depth = 16;
     dsp_sample_input_init(this, dsp_id);
     dsp_sample_output_init(this);
 }
@@ -60,6 +61,11 @@ bool dsp_sample_io_configure(struct sample_io_data *this,
         this->format.codec_frequency = this->output_sampr;
         this->sample_depth = NATIVE_DEPTH;
         this->stereo_mode = STEREO_NONINTERLEAVED;
+        if (this->output_depth != 16)
+        {
+            this->output_depth = 16;
+            this->output_version = 0; /* Force output function update */
+        }
         break;
 
     case DSP_SET_FREQUENCY:
@@ -95,6 +101,18 @@ bool dsp_sample_io_configure(struct sample_io_data *this,
         this->format.frequency =
             fp_mul(value, this->format.codec_frequency, 16);
         break;
+
+    case DSP_SET_OUTPUT_DEPTH:
+        /* PodBox: 32 writes int32 frames (full scale 2^31) instead of int16
+           ones; the internal precision goes through unchanged */
+        value = value > 16 ? 32 : 16;
+        *value_p = value;
+        if (value != this->output_depth)
+        {
+            this->output_depth = value;
+            this->output_version = 0; /* Force output function update */
+        }
+        return true; /* Only I/O handles it */
 
     case DSP_SET_OUT_FREQUENCY:
         value = value > 0 ? value : DSP_OUT_DEFAULT_HZ;

@@ -85,8 +85,10 @@ unsigned int pcm_get_frequency(void);
 /* apply settings to hardware immediately */
 void pcm_apply_settings(void);
 
+/* frame_bytes: 4 = int16 stereo, 8 = int32 stereo (peaks in 16-bit scale) */
 void pcm_do_peak_calculation(struct pcm_peaks *peaks, bool active,
-                             const void *addr, int count);
+                             const void *addr, int count,
+                             unsigned int frame_bytes);
 
 /** The following are for internal use between pcm.c and target-
     specific portion **/

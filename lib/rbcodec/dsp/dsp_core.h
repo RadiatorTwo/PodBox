@@ -39,6 +39,8 @@ enum dsp_settings
     DSP_SET_PITCH,
     DSP_SET_OUT_FREQUENCY,
     DSP_GET_OUT_FREQUENCY,
+    DSP_SET_OUTPUT_DEPTH, /* PodBox: 16 (default, int16 frames) or 32 (int32
+                             frames, full scale 2^31); DSP_RESET sets 16 */
     DSP_PROC_INIT,
     DSP_PROC_CLOSE,
     DSP_PROC_NEW_FORMAT,
@@ -77,6 +79,7 @@ struct dsp_buffer
         const void *pin[2]; /* 04h: Channel pointers (In) */
         int32_t *p32[2];    /* 04h: Channel pointers (Int) */
         int16_t *p16out;    /* 04h: DSP output buffer (Out) */
+        int32_t *p32out;    /* 04h: same with output depth 32 (Out) */
     };
     union
     {
@@ -108,11 +111,14 @@ static inline void dsp_advance_buffer_input(struct dsp_buffer *buf,
 /* Add samples to output buffer and update remaining space (Out).
    Provided to dsp_process() */
 static inline void dsp_advance_buffer_output(struct dsp_buffer *buf,
-                                             int by_count)
+                                             int by_count, int depth)
 {
     buf->bufcount -= by_count;
     buf->remcount += by_count;
-    buf->p16out += 2 * by_count; /* Interleaved stereo */
+    if (depth > 16)
+        buf->p32out += 2 * by_count; /* Interleaved stereo */
+    else
+        buf->p16out += 2 * by_count; /* Interleaved stereo */
 }
 
 /* Remove samples from internal input buffer (In, Int).

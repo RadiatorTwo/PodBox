@@ -476,7 +476,7 @@ void dsp_process(struct dsp_config *dsp, struct dsp_buffer *src,
 
         /* Advance buffers by what output consumed and produced */
         dsp_advance_buffer32(buf, outcount);
-        dsp_advance_buffer_output(dst, outcount);
+        dsp_advance_buffer_output(dst, outcount, dsp->io_data.output_depth);
 
         DSP_PROCESS_LOOP(thread_yield);
     } /* while */

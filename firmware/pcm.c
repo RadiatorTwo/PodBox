@@ -206,8 +206,36 @@ static void pcm_peak_peeker(const int16_t *p, int count,
     peaks->right = peak_r;
 }
 
+/* Same for packed 32-bit samples, result in 16-bit scale */
+static void pcm_peak_peeker32(const int32_t *p, int count,
+                              struct pcm_peaks *peaks)
+{
+    uint32_t peak_l = 0, peak_r = 0;
+    const int32_t *pend = p + 2 * count;
+
+    do
+    {
+        uint32_t s;
+
+        s = p[0] < 0 ? -(uint32_t)p[0] : (uint32_t)p[0];
+        if (s > peak_l)
+            peak_l = s;
+
+        s = p[1] < 0 ? -(uint32_t)p[1] : (uint32_t)p[1];
+        if (s > peak_r)
+            peak_r = s;
+
+        p += 4 * 2; /* Every 4th sample, interleaved */
+    }
+    while (p < pend);
+
+    peaks->left = MIN(peak_l >> 16, 32767u);
+    peaks->right = MIN(peak_r >> 16, 32767u);
+}
+
 void pcm_do_peak_calculation(struct pcm_peaks *peaks, bool active,
-                             const void *addr, int count)
+                             const void *addr, int count,
+                             unsigned int frame_bytes)
 {
     long tick = current_tick;
 
@@ -236,7 +264,9 @@ void pcm_do_peak_calculation(struct pcm_peaks *peaks, bool active,
         int framecount = peaks->period * sampr / HZ;
         count = MIN(framecount, count);
 
-        if (count > 0)
+        if (count > 0 && frame_bytes == 8)
+            pcm_peak_peeker32(addr, count, peaks);
+        else if (count > 0)
             pcm_peak_peeker(addr, count, peaks);
         /* else keep previous peak values */
     }

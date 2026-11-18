@@ -40,6 +40,7 @@
 #include <dlfcn.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <string.h>
 #include <android/log.h>
 #include <aaudio/AAudio.h>
 #include "config.h"
@@ -51,6 +52,10 @@
 #include "pcm_sampr.h"
 #include "pcm_sink.h"
 #include "audiohw.h"
+
+#ifndef HAVE_PCM_32BIT_PATH
+#error "pcm-android.c expects int32 frames from the mixer (HAVE_PCM_32BIT_PATH)"
+#endif
 
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "PodBoxAudio", __VA_ARGS__)
 
@@ -210,8 +215,8 @@ static bool open_stream(void)
     if (!have_aaudio)
         return false;
 
-    /* 32-bit integer if possible (API 31), float as a fallback; both carry
-     * more than the 16 bits Rockbox produces today */
+    /* 32-bit integer if possible (API 31), float as a fallback; Rockbox
+     * hands over int32 frames (HAVE_PCM_32BIT_PATH) */
     static const aaudio_format_t formats[] =
         { AAUDIO_FORMAT_PCM_I32, AAUDIO_FORMAT_PCM_FLOAT };
 
@@ -267,34 +272,33 @@ static void pause_and_flush(void)
 
 /* ---- the audio thread ---- */
 
-/* converts 16-bit Rockbox frames to the stream format */
-static void convert(int32_t *dst, const int16_t *src, size_t samples)
+/* converts the mixer's int32 frames (full scale 2^31) to the stream format */
+static void convert(int32_t *dst, const int32_t *src, size_t samples)
 {
     float g = pcm_gain;
     if (stream_format == AAUDIO_FORMAT_PCM_FLOAT)
     {
         float *f = (float *)dst;
-        float scale = g / 32768.0f;
+        float scale = g / 2147483648.0f;
         while (samples--)
             *f++ = *src++ * scale;
     }
     else if (g >= 1.0f)
     {
-        while (samples--)
-            *dst++ = (int32_t)*src++ << 16;   /* bit-exact */
+        memcpy(dst, src, samples * sizeof (int32_t)); /* bit-exact */
     }
     else
     {
-        float scale = g * 65536.0f;
+        int64_t q = (int64_t)(g * (float)(1 << 30)); /* 2.30 fixed point */
         while (samples--)
-            *dst++ = (int32_t)(*src++ * scale);
+            *dst++ = (int32_t)((*src++ * q) >> 30);
     }
 }
 
 /* takes up to max_frames from Rockbox; returns the number of frames */
 static size_t fill(size_t max_frames)
 {
-    const size_t frame_bytes = PCM_SAMPLE_SIZE;
+    const size_t frame_bytes = 2 * sizeof(int32_t); /* see HAVE_PCM_32BIT_PATH */
     size_t left = max_frames * frame_bytes;
     int32_t *dst = out_buf;
     bool new_buffer = false;
@@ -308,8 +312,8 @@ static size_t fill(size_t max_frames)
     while (left > 0 && pcm_data_size)
     {
         size_t n = MIN(left, pcm_data_size);
-        convert(dst, pcm_data_start, n / sizeof(int16_t));
-        dst += n / sizeof(int16_t);
+        convert(dst, pcm_data_start, n / sizeof(int32_t));
+        dst += n / sizeof(int32_t);
         left -= n;
         pcm_data_size -= n;
         pcm_data_start += n;

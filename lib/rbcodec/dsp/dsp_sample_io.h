@@ -53,6 +53,7 @@ struct sample_io_data
     uint8_t format_dirty;         /* Format change set, avoids superfluous
                                      increments before carrying it out */
     uint8_t output_version;       /* Format version of src buffer at output */
+    uint8_t output_depth;         /* Output sample size: 16 or 32 bits */
 };
 
 void dsp_sample_input_init(struct sample_io_data *this, unsigned int dsp_id) INIT_ATTR;
