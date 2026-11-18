@@ -236,8 +236,9 @@ Start, Menü, Ja/Nein-Dialog, Browser, FLAC-Wiedergabe mit Album-Art. Der alte W
   aus `app_data`, SELinux erlaubt das mit Audit-Hinweis).
 - Nicht umgesetzt, erst auf Android 14+ nötig: `RECEIVER_EXPORTED`-Flags bei
   `registerReceiver()` (Gerät läuft mit Android 12).
-- Nebenbefund: Das Lua-Spiel `boomshine` bricht ab (`backlight_force_on` fehlt in der
-  Android-Lua-API), unabhängig von targetSdk.
+- Nebenbefund: Das Lua-Spiel `boomshine` brach ab (`backlight_force_on` fehlte in der
+  Android-Lua-API). Behoben: `rocklib.c` registriert `backlight_force_on`/`backlight_use_settings`
+  immer (ohne `HAVE_BACKLIGHT` als leere Funktionen), boomshine läuft.
 
 ## Wärme und Audio-Hardware (Stand 17.11.)
 

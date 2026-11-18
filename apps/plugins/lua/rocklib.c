@@ -593,6 +593,10 @@ RB_WRAP(mixer_frequency)
     return 1;
 }
 
+/* PodBox: always available, see the function list */
+SIMPLE_VOID_WRAPPER(backlight_force_on);
+SIMPLE_VOID_WRAPPER(backlight_use_settings);
+
 #ifdef HAVE_BACKLIGHT
 /* DEVICE LIGHTING CONTROL */
 RB_WRAP(backlight_onoff)
@@ -605,9 +609,6 @@ RB_WRAP(backlight_onoff)
 
     return 0;
 }
-
-SIMPLE_VOID_WRAPPER(backlight_force_on);
-SIMPLE_VOID_WRAPPER(backlight_use_settings);
 
 #ifdef HAVE_REMOTE_LCD
 SIMPLE_VOID_WRAPPER(remote_backlight_force_on);
@@ -980,13 +981,14 @@ static const luaL_Reg rocklib[] =
     RB_FUNC(pcm),
     RB_FUNC(mixer_frequency),
 
+    /* Backlight helper (PodBox: always there, no-ops without HAVE_BACKLIGHT,
+       so scripts like boomshine.lua run on Android) */
+    RB_FUNC(backlight_force_on),
+    RB_FUNC(backlight_use_settings),
+
 #ifdef HAVE_BACKLIGHT
     /* DEVICE LIGHTING CONTROL */
     RB_FUNC(backlight_onoff),
-
-    /* Backlight helper */
-    RB_FUNC(backlight_force_on),
-    RB_FUNC(backlight_use_settings),
 
 #ifdef HAVE_REMOTE_LCD
     RB_FUNC(remote_backlight_force_on),
