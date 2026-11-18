@@ -78,6 +78,12 @@
 
 #define HAVE_HEADPHONE_DETECTION
 
+/* PodBox: Android takes any rate; with "playback frequency: auto" Rockbox
+ * hands every track over at its own rate (no resampling in Rockbox). On
+ * headphones the firmware passes it straight to the DAC (direct output,
+ * up to 384 kHz), on the speaker Android's mixer converts it. */
+#define HW_SAMPR_CAPS SAMPR_CAP_ALL_192
+
 #define CONFIG_BATTERY_MEASURE PERCENTAGE_MEASURE
 
 #define NO_LOW_BATTERY_SHUTDOWN

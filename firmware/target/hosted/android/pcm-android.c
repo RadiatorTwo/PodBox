@@ -43,6 +43,7 @@ static pthread_mutex_t audio_lock_mutex = PTHREAD_MUTEX_INITIALIZER;
 static jmethodID play_pause_method;
 static jmethodID stop_method;
 static jmethodID set_volume_method;
+static jmethodID set_freq_method;
 static jmethodID write_method;
 static jclass    RockboxPCM_class;
 static jobject   RockboxPCM_instance;
@@ -149,7 +150,11 @@ static void sink_unlock(void)
 
 static void sink_set_freq(uint16_t freq)
 {
-    (void)freq;
+    /* PodBox: called from pcm_apply_settings() while playback is stopped;
+     * RockboxPCM recreates its AudioTrack at the new rate */
+    JNIEnv* env = getJavaEnvironment();
+    (*env)->CallVoidMethod(env, RockboxPCM_instance, set_freq_method,
+                           (jint)hw_freq_sampr[freq]);
 }
 
 static void sink_dma_start(const void *addr, size_t size)
@@ -198,6 +203,7 @@ static void sink_dma_init(void)
     /* cache needed methods */
     play_pause_method = e->GetMethodID(env_ptr, RockboxPCM_class, "play_pause", "(Z)V");
     set_volume_method = e->GetMethodID(env_ptr, RockboxPCM_class, "set_volume", "(I)V");
+    set_freq_method   = e->GetMethodID(env_ptr, RockboxPCM_class, "set_freq", "(I)V");
     stop_method       = e->GetMethodID(env_ptr, RockboxPCM_class, "stop", "()V");
     write_method      = e->GetMethodID(env_ptr, RockboxPCM_class, "write", "([BII)I");
 }

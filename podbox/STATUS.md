@@ -116,6 +116,21 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     Der Original-Player ist mit einem Packer verschlüsselt, steuert die Hardware aber nicht
     selbst: Er liefert PCM_FLOAT in Originalrate, der HAL wandelt nach PCM32. DSD/DoP-Spuren
     (`libBluesharkSacd.so`, `DOP_output`).
+18. **Originalrate:** Rockbox gab fest 44,1 kHz aus und rechnete alles andere selbst um. Jetzt
+    meldet der Android-Port alle Raten bis 192 kHz (`HW_SAMPR_CAPS SAMPR_CAP_ALL_192` in
+    `config/android.h`), mit "Wiedergabefrequenz: Auto" (Standard) läuft jeder Titel in seiner
+    eigenen Rate. `sink_set_freq` ruft `RockboxPCM.set_freq()`, das den AudioTrack neu anlegt
+    (Puffer skaliert mit der Rate, alter Track wird vom Audio-Thread freigegeben). Getestet am
+    Kopfhörer: 44,1/48/88,2/96/176,4/192 kHz gehen unverändert bis zur Hardware
+    (`wired DIRECT source N -> hardware N`), 192 kHz ohne Underruns. Last bei 192 kHz: Rockbox
+    6 %, audioserver 3,6 %, Audio-HAL 16,6 %. Am Lautsprecher rechnet Android um (ungetestet).
+    Grenze: Rockbox gibt weiterhin 16 Bit aus (Decoder/DSP/Mixer); 24-Bit-Ausgabe wäre der
+    nächste Umbau.
+19. **Falsche Texte nach Feature-Änderung:** `tools/genlang` cachte die String-IDs in
+    `apps/lang/english.list` ohne Rücksicht auf die Target-Features. Nach dem Aktivieren von
+    `play_frequency` hatten die `.lng`-Dateien deshalb die alte Nummerierung (z. B.
+    "Symbole im Zwischenspeicher" statt "Verknüpfungen"). Der Cache speichert jetzt das Target
+    und gilt nur bei gleichem Target. Nach Feature-Änderungen `build.sh zip` bauen.
 ## Modernisierung
 
 | Etappe | Stand |
@@ -190,9 +205,7 @@ Rockbox kostet ohnehin nur wenige Prozent.
   Sekunde neu, jedes Mal als Vollbild-Kopie (`RockboxFramebuffer.update()`). Nächster Ansatz:
   nur den geänderten Bereich kopieren/zeichnen, Scrollen ggf. drosseln.
 - Mögliche nächste Schritte für Effizienz/Klang (noch nicht entschieden):
-  1. Kopfhörer: Originalrate bis 192 kHz über `wired_headphone_direct` (HW_SAMPR_CAPS
-     erweitern, AudioTrack bei Ratenwechsel neu anlegen, Wiedergabefrequenz Auto). Kein Mixer,
-     kein Resampling, bester Klang. Braucht eingesteckten Kopfhörer zum Testen.
+  1. ~~Kopfhörer: Originalrate bis 192 kHz~~ erledigt (Fix 18). Offen: 24-Bit-Ausgabe.
   2. Lautsprecher: Rockbox gibt 48 kHz aus (eigener, billiger Resampler). Klang bei 44,1-kHz-
      Dateien vom User anhören lassen.
   3. Bildschirm-Timeout im Wiedergabe-Bildschirm kurz halten.

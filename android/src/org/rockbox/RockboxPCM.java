@@ -38,7 +38,8 @@ import android.os.Process;
 public class RockboxPCM 
 {
     private static final int streamtype = AudioManager.STREAM_MUSIC;
-    private static final int samplerate = 44100;
+    /* PodBox: current output rate, changed by set_freq() */
+    private int samplerate = 44100;
     /* should be CHANNEL_OUT_STEREO in 2.0 and above */
     private static final int channels = 
             AudioFormat.CHANNEL_OUT_STEREO;
@@ -55,10 +56,14 @@ public class RockboxPCM
     private float curpcmvolume = 0;
     private float pcmrange;
 
-    /* 8k is plenty, but some devices may have a higher minimum.
-     * 8k represents 125ms of audio */
-    private static final int chunkSize =
-        Math.max(8<<10, AudioTrack.getMinBufferSize(samplerate, channels, encoding));
+    /* 8k at 44.1 kHz is plenty, but some devices may have a higher minimum.
+     * PodBox: scaled with the rate, so the buffer always holds ~46 ms */
+    private static int chunkSizeFor(int rate)
+    {
+        int size = (int)((8L << 10) * rate / 44100) & ~3; /* whole frames */
+        return Math.max(size, AudioTrack.getMinBufferSize(rate, channels, encoding));
+    }
+    private volatile int chunkSize = chunkSizeFor(44100);
     Streamer streamer;
 
     /* PodBox: RockboxPCM used to extend AudioTrack. It now wraps one, so the
@@ -66,9 +71,12 @@ public class RockboxPCM
      * puts it on the deep-buffer output; otherwise Android 12 uses the
      * low-latency primary output (256-frame HAL periods, FastMixer), which
      * costs about half a CPU core and heats the device. */
-    private final AudioTrack track;
+    private volatile AudioTrack track;
+    /* PodBox: a track replaced by set_freq(); released by the streamer
+     * thread, which is the only one that may be inside write() */
+    private AudioTrack retired;
 
-    private static AudioTrack createTrack()
+    private static AudioTrack createTrack(int samplerate, int chunkSize)
     {
         AudioAttributes attr = new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -95,7 +103,7 @@ public class RockboxPCM
 
     public RockboxPCM()
     {
-        track = createTrack();
+        track = createTrack(samplerate, chunkSize);
 
         streamer = new Streamer(chunkSize);
         streamer.start();
@@ -139,6 +147,16 @@ public class RockboxPCM
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
             while (!quit)
             {
+                AudioTrack old;
+                synchronized (RockboxPCM.this)
+                {
+                    old = retired;
+                    retired = null;
+                }
+                if (old != null)
+                    old.release();
+                if (buffer.length != chunkSize)
+                    buffer = new byte[chunkSize];
                 switch(track.getPlayState())
                 {
                     case AudioTrack.PLAYSTATE_PLAYING:
@@ -306,6 +324,11 @@ public class RockboxPCM
             service.startForeground();
             if (track.getPlayState() == AudioTrack.PLAYSTATE_STOPPED)
             {
+                /* drop anything written while stopped (e.g. right after a
+                 * rate change) */
+                track.flush();
+                if (raw_data.length != chunkSize)
+                    raw_data = new byte[chunkSize];
                 /* need to fill with silence before starting playback */ 
                 track.write(raw_data, 0, raw_data.length);
             }
@@ -349,6 +372,38 @@ public class RockboxPCM
         widgetUpdate.putExtra("state", "stop");
         RockboxService.getInstance().sendBroadcast(widgetUpdate);
         RockboxService.getInstance().stopForeground();
+    }
+
+    /* PodBox: called from native code (sink_set_freq) while playback is
+     * stopped. Builds a new AudioTrack at the new rate. */
+    private void set_freq(int rate)
+    {
+        if (rate == samplerate)
+            return;
+        Logger.i("PodBox: output rate " + samplerate + " -> " + rate);
+        AudioTrack newtrack;
+        int size = chunkSizeFor(rate);
+        try {
+            newtrack = createTrack(rate, size);
+        } catch (Exception e) {
+            Logger.e("PodBox: no AudioTrack at " + rate + " Hz: " + e);
+            return;
+        }
+        newtrack.setStereoVolume(curpcmvolume, curpcmvolume);
+        synchronized (this)
+        {
+            AudioTrack old = track;
+            try {
+                old.stop();
+            } catch (IllegalStateException e) { }
+            if (retired != null)
+                retired.release();
+            retired = old;
+            samplerate = rate;
+            chunkSize = size;
+            track = newtrack;
+        }
+        streamer.kick(); /* releases the old track */
     }
 
     public void release()

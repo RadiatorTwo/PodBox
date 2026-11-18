@@ -208,6 +208,18 @@ if($english) {
     readenglish();
 }
 
+# PodBox: english.list caches the string ids, but which strings exist depends
+# on the target features (e.g. play_frequency). The cache used to be reused
+# whenever it was newer than english.lang, so after a feature change the .lng
+# files got the old numbering and showed wrong texts. Remember the target.
+sub english_list_valid {
+    return 0 if (!file_is_newer("$binpath/english.list", $english));
+    open(my $fh, "<$binpath/english.list") || return 0;
+    my $first = <$fh>;
+    close $fh;
+    return (defined $first and $first eq "#target:$target\n");
+}
+
 sub readenglish {
     # For the cases where the english file needs to be scanned/read, we must
     # do it before we read the translated file.
@@ -215,9 +227,10 @@ sub readenglish {
     my @idnum = ((0));       # start with a true number
     my @vidnum = ((0x8001)); # first voice id
 
-    if ($binary and file_is_newer("$binpath/english.list", $english)) {
+    if ($binary and english_list_valid()) {
         open(ENG, "<$binpath/english.list") ||
             die "Error: can't open $binpath/english.list";
+        <ENG>; # skip the target line
         while (<ENG>) {
             my ($user, $id, $value) = split ':', $_;
             $idmap[$user]{$id} = $value;
@@ -726,9 +739,10 @@ if($verbose) {
     }
 }
 
-if ($binary and !file_is_newer("$binpath/english.list", $english)) {
+if ($binary and !english_list_valid()) {
     open(ENGLIST, ">$binpath/english.list") ||
         die "Failed creating $binpath/english.list";
+    print ENGLIST "#target:$target\n";
     for my $user (keys %users) {
         for my $id (sort { $idmap[$user]{$a} <=> $idmap[$user]{$b} } keys %{$idmap[$user]}) {
             print ENGLIST "$user:$id:$idmap[$user]{$id}\n";
