@@ -7,9 +7,10 @@ Die alte App `org.rockbox` ist deinstalliert.
 
 ## Ziel
 
-Rockbox als Android-App für den Surfans F20 Pro+ (Android 12, 480x640, MT6765),
-bedient wie ein echtes Rockbox-Gerät, komplett über die Hardware: Drehrad, Rad-Button und
-3 Tasten rechts. Basis ist der originale Rockbox-C-Code mit seinem Android-Port, kein Nachbau.
+Eine gute Musik-App für den Surfans F20 Pro+ (Android 12, 480x640, MT6765), komplett über die
+Hardware bedienbar: Drehrad, Rad-Button und 3 Tasten rechts. Basis ist der Rockbox-C-Code mit
+seinem Android-Port, aber nur als Vorlage: Umbauten sind erlaubt, wenn sie Klang, Akku oder
+Bedienung verbessern. Audio möglichst unverändert (Originalrate/-format) an die Hardware geben.
 
 ## Was funktioniert (auf dem Gerät getestet)
 
@@ -340,5 +341,18 @@ per adb nicht auslösen.
 - [x] Wiedergabezähler/Statistiken: gehen (18.11. getestet, Titel aus dem Datei-Browser landet nach
       > 15 s unter "Kürzlich gespielt", übersteht Neustart). Voraussetzung: "Laufzeitdaten sammeln"
       (`gather runtime data: on`, Rockbox-Standard ist aus), auf dem Gerät jetzt eingeschaltet.
-- [ ] Datenbank mit großer Bibliothek testen (Scan-Dauer, Speicher)
+- [x] Datenbank mit großer Bibliothek: geht (18.11. getestet mit 10000 künstlichen MP3s, 200
+      Interpreten × 5 Alben × 10 Titel, ID3v2.3, auf der SD-Karte, plus die echten Titel = 10197
+      Einträge, keine Duplikate). "Jetzt aktualisieren" mit 10000 neuen Dateien: 62 s, danach
+      ohne Änderungen 39 s + ca. 15 s Nachlauf (ca. 28 % eines Kerns, meist Systemzeit im
+      FUSE-Zugriff auf `/storage`). Speicher unverändert (RSS ca. 130 MB, die Datenbank liegt
+      nicht im RAM). Künstlerliste und "[Alle Titel]" (10197, sortiert, vollständig) öffnen in
+      unter 0,5 s, Kaltstart in unter 2 s. Index 979 KB, Dateinamen 990 KB. Generator:
+      Perl-Skript, kleine stille MP3s (40 Frames) mit Tags; die Testdateien sind wieder gelöscht.
+      Langsam ist nur das Austragen gelöschter Dateien: Nach dem Löschen der 10000 Dateien
+      markierte das Aktualisieren sie im Hintergrund mit ca. 30 Einträgen/s (ca. 6 min,
+      `check_deleted_file_refs()` → `delete_entry()` je Datei). Kommt nur bei Massenlöschungen
+      vor; bei Bedarf `delete_entry()` bündeln. Die Datenbank-Dateien behalten die 10000
+      gelöschten Einträge (Index 979 KB), "Neu generieren" würde sie verkleinern, löscht aber
+      die Wiedergabezähler (vorher "Änderungen exportieren").
 - [ ] Optional: Rockbox als Launcher (HOME-Intent), eigenes Theme
