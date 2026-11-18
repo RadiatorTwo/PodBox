@@ -144,13 +144,15 @@ Gradle Plugin). Gradle-Ausgaben und -Cache liegen im Build-Verzeichnis (`gradle/
 Mit `PODBOX_APK=make` läuft noch der alte Weg über `android.make`; dann signiert das Skript
 mit `apksigner` neu, weil Android 12 die alte MD5/SHA1-Signatur ablehnt.
 
+Die Paket-ID ist `com.blueshark.player` (nicht `org.rockbox`). Die Firmware des F20 Pro+ leitet am Kopfhörer nur Pakete von ihrer fest eingebauten Liste auf den direkten Ausgang zum DAC, alle anderen zwingt sie auf den primären Mixer (mehr CPU-Last, Umrechnung auf 48 kHz). Andere ID: `PODBOX_APP_ID=... build.sh` (setzt die Pfade in `tools/configure` und die `applicationId` in Gradle).
+
 Die App zielt auf `targetSdk` 34. Rockbox liest Dateien mit C-`open()`, dafür braucht sie
 „Zugriff auf alle Dateien“ (`MANAGE_EXTERNAL_STORAGE`). Beim ersten Start öffnet die App die
 passende Einstellungsseite; nach dem Erlauben und Zurückkehren startet Rockbox. Per adb geht es
 auch direkt:
 
 ```bash
-adb shell appops set --uid org.rockbox MANAGE_EXTERNAL_STORAGE allow
+adb shell appops set --uid com.blueshark.player MANAGE_EXTERNAL_STORAGE allow
 ```
 
 Die repo-lokale Git-Einstellung `core.eol=lf` ist nötig, sonst checkt Git unter Windows

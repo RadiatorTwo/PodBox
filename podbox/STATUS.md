@@ -2,7 +2,8 @@
 
 Stand: 18.11.2026, `main` (github.com/RadiatorTwo/PodBox), Modernisierung abgeschlossen
 (Etappe 4: `targetSdk` 34). Auf dem Gerät installiert: 64-Bit-Build (arm64-v8a, NDK r27,
-APK per Gradle, `targetSdk` 34, `versionCode` 2) mit "Zugriff auf alle Dateien".
+APK per Gradle, `targetSdk` 34) als **`com.blueshark.player`** mit "Zugriff auf alle Dateien".
+Die alte App `org.rockbox` ist deinstalliert.
 
 ## Ziel
 
@@ -99,6 +100,22 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     −99 dB = Android-Stufe 0 = stumm. Ändert sich die Android-Lautstärke (Rad bei Bildschirm
     aus), übernimmt Rockbox den echten dB-Wert der Stufe. Getestet: Android 0/40/60 →
     Rockbox −99/−28/−17 dB, Rockbox-Schritte landen auf der passenden Stufe.
+17. **Kopfhörer: primärer Mixer statt Direktpfad (Wärme):** Die Hersteller-Audio-Policy
+    (`libaudiopolicymanagerdefault.so`) zwingt am Kopfhörer jede PCM-Wiedergabe auf den
+    primären Mixer (`force non-DIRECT wired PCM uid ... to PRIMARY mixer`), auch `deep_buffer`
+    ist dort ausgeschlossen. Direkt zum DAC (`wired_headphone_direct`, DIRECT, 8–384 kHz) darf nur
+    die App mit Audio-Fokus (`sys.audio.wired_direct_focus_uid`), und nur wenn ihr Paket auf
+    einer fest eingebauten Liste steht: `com.blueshark.hifi`, `.player`, `.musicplay`,
+    `.h30music`, `.tapemusic`, `.newsmy411music`. Installiert ist davon nur `com.blueshark.hifi`
+    (der "Surfans Hifi Player"). PodBox heißt deshalb jetzt `com.blueshark.player`
+    (`PODBOX_APP_ID`, `tools/configure`, `build.gradle`; `RockboxService` ermittelt
+    `app_rockbox` per `getDir()`). Gemessen bei Wiedergabe am Kopfhörer, Bildschirm an:
+    audioserver 16 % → 1,4 %, Audio-HAL 13 % → 4,8 %, Temperatur in 3 min +5 °C → +2 °C.
+    Der Track läuft mit 44,1 kHz/16 Bit ohne Resampling (`wired DIRECT source 44100 ->
+    hardware 44100`). Am Lautsprecher bleibt es bei `deep_buffer`.
+    Der Original-Player ist mit einem Packer verschlüsselt, steuert die Hardware aber nicht
+    selbst: Er liefert PCM_FLOAT in Originalrate, der HAL wandelt nach PCM32. DSD/DoP-Spuren
+    (`libBluesharkSacd.so`, `DOP_output`).
 ## Modernisierung
 
 | Etappe | Stand |
@@ -120,7 +137,7 @@ Start, Menü, Ja/Nein-Dialog, Browser, FLAC-Wiedergabe mit Album-Art. Der alte W
 **Etappe 4, umgesetzt:**
 - Speicherzugriff: `MANAGE_EXTERNAL_STORAGE`. Fehlt der Zugriff, öffnet `RockboxActivity` die
   Einstellungsseite ("Zugriff auf alle Dateien") und startet den Service erst nach der Rückkehr
-  (`onResume`). Per adb: `adb shell appops set --uid org.rockbox MANAGE_EXTERNAL_STORAGE allow`.
+  (`onResume`). Per adb: `adb shell appops set --uid com.blueshark.player MANAGE_EXTERNAL_STORAGE allow`.
   `WRITE_/READ_EXTERNAL_STORAGE` nur noch mit `maxSdkVersion`.
 - Foreground-Service mit Typ `mediaPlayback` (+ `FOREGROUND_SERVICE`,
   `FOREGROUND_SERVICE_MEDIA_PLAYBACK`), Notification per `Notification.Builder` mit Channel
@@ -168,6 +185,10 @@ Rockbox kostet ohnehin nur wenige Prozent.
 - Rockbox: Decoder/DSP/Mixer 16 Bit, Raten bis 192 kHz möglich (`SAMPR_CAP_ALL_192`,
   „Wiedergabefrequenz: Auto“), Android-Port derzeit fest 44,1 kHz. Natives DSD/384 kHz/24 Bit
   nur mit tiefem Umbau.
+- Größter Rest bei Bildschirm an (Stand 18.11., Direktpfad): Rockbox-Thread ca. 11,6 % und
+  surfaceflinger ca. 9,8 %. Der WPS zeichnet wegen der scrollenden Albumzeile ca. 12-mal pro
+  Sekunde neu, jedes Mal als Vollbild-Kopie (`RockboxFramebuffer.update()`). Nächster Ansatz:
+  nur den geänderten Bereich kopieren/zeichnen, Scrollen ggf. drosseln.
 - Mögliche nächste Schritte für Effizienz/Klang (noch nicht entschieden):
   1. Kopfhörer: Originalrate bis 192 kHz über `wired_headphone_direct` (HW_SAMPR_CAPS
      erweitern, AudioTrack bei Ratenwechsel neu anlegen, Wiedergabefrequenz Auto). Kein Mixer,

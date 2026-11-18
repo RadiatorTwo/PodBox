@@ -3338,9 +3338,13 @@ fi
     target="ANDROID"
     app_type="android"
     app_set_lcd_size
-    sharedir="/data/data/org.rockbox/app_rockbox/rockbox"
-    bindir="/data/data/org.rockbox/lib"
-    libdir="/data/data/org.rockbox/app_rockbox"
+    # PodBox: package id of the app (android/build.gradle, podbox/build.sh).
+    # com.blueshark.player is on the firmware's allow-list for the direct
+    # (bit-perfect) headphone output of the Surfans F20 Pro+.
+    android_pkg="${PODBOX_APP_ID:-com.blueshark.player}"
+    sharedir="/data/data/$android_pkg/app_rockbox/rockbox"
+    bindir="/data/data/$android_pkg/lib"
+    libdir="/data/data/$android_pkg/app_rockbox"
     memory=8
     uname=`uname`
     # PodBox: ANDROID_ABI=arm64-v8a builds for 64 bit ARM (clang NDK only)

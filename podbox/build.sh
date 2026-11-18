@@ -18,7 +18,9 @@ BT=$ANDROID_SDK_PATH/build-tools/30.0.3
 KS=~/podbox/podbox.keystore
 
 mkdir -p "$BUILD" && cd "$BUILD"
-if [ ! -f Makefile ]; then
+# package id, see tools/configure (paths) and android/build.gradle
+export PODBOX_APP_ID=${PODBOX_APP_ID:-com.blueshark.player}
+if [ ! -f Makefile ] || ! grep -q "/data/data/$PODBOX_APP_ID/" autoconf.h 2>/dev/null; then
     "$SRC/tools/configure" --target=201 --lcdwidth=480 --lcdheight=640 --type=N
 fi
 
@@ -41,7 +43,7 @@ else
     make libs > libs.log 2>&1 || { tail -30 libs.log; exit 1; }
     VERSION=$(git -C "$SRC" -c safe.directory='*' rev-parse --short HEAD 2>/dev/null || echo 1.0)
     "$SRC/android/gradlew" -p "$SRC/android" -q --project-cache-dir "$BUILD/gradle-cache" \
-        -Ppodbox.build="$BUILD" -Ppodbox.keystore="$KS" -Ppodbox.version="$VERSION" \
+        -Ppodbox.build="$BUILD" -Ppodbox.keystore="$KS" -Ppodbox.version="$VERSION" -Ppodbox.appid="$PODBOX_APP_ID" \
         assembleDebug > gradle.log 2>&1 || { tail -40 gradle.log; exit 1; }
     APK=gradle/outputs/apk/debug/rockbox-debug.apk
 fi

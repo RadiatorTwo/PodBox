@@ -16,7 +16,9 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'org.rockbox'
+        // com.blueshark.player: the firmware only routes allow-listed packages
+        // to the direct headphone output (no mixer/resampler), see STATUS.md
+        applicationId(findProperty('podbox.appid') ?: 'com.blueshark.player')
         // API 21 is what the native part is built for (tools/configure)
         minSdk 21
         targetSdk 34

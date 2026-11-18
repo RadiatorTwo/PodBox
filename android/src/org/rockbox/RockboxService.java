@@ -161,8 +161,9 @@ public class RockboxService extends Service
             public void run()
             {
                 final int BUFFER = 8*1024;
-                String rockboxDirPath = "/data/data/org.rockbox/app_rockbox/rockbox";
-                String rockboxCreditsPath = "/data/data/org.rockbox/app_rockbox/rockbox/rocks/viewers";
+                /* PodBox: no hard-coded package, the id is configurable */
+                String rockboxDirPath = getDir("rockbox", MODE_PRIVATE).getAbsolutePath() + "/rockbox";
+                String rockboxCreditsPath = rockboxDirPath + "/rocks/viewers";
                 String rockboxSdDirPath = "/sdcard/rockbox";
 
                 /* the following block unzips libmisc.so, which contains the files 
