@@ -251,6 +251,7 @@ public class RockboxPCM
         if (pause)
         {
             Intent widgetUpdate = new Intent("org.rockbox.UpdateState");
+            widgetUpdate.setPackage(service.getPackageName());
             widgetUpdate.putExtra("state", "pause");
             service.sendBroadcast(widgetUpdate);
             service.stopForeground();
@@ -259,6 +260,7 @@ public class RockboxPCM
         else
         {
             Intent widgetUpdate = new Intent("org.rockbox.UpdateState");
+            widgetUpdate.setPackage(service.getPackageName());
             widgetUpdate.putExtra("state", "play");
             service.sendBroadcast(widgetUpdate);
             service.startForeground();
@@ -303,6 +305,7 @@ public class RockboxPCM
         }
 
         Intent widgetUpdate = new Intent("org.rockbox.UpdateState");
+        widgetUpdate.setPackage(RockboxService.getInstance().getPackageName());
         widgetUpdate.putExtra("state", "stop");
         RockboxService.getInstance().sendBroadcast(widgetUpdate);
         RockboxService.getInstance().stopForeground();

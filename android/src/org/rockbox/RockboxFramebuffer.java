@@ -187,5 +187,9 @@ public class RockboxFramebuffer extends SurfaceView
     {
         btm = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
         setEnabled(true);
+        /* PodBox: a disabled view can't take focus, and with targetSdk >= 28
+         * Android no longer hands it out later on its own. Without focus the
+         * hardware keys never reach onKeyDown(). */
+        requestFocus();
     }
 }

@@ -30,4 +30,5 @@
 <string name="appwidget_configure_next">Next Button</string>
 <string name="appwidget_configure_confirm">Create Widget</string>
 
+	<string name="podbox_storage_access">PodBox needs access to all files to play music. Please allow it and return.</string>
 </resources>

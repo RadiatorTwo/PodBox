@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import org.rockbox.R;
 import org.rockbox.RockboxActivity;
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -12,6 +13,7 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.Handler;
 import android.widget.RemoteViews;
 
@@ -20,6 +22,7 @@ public class RunForegroundManager
     /* all below is heavily based on the examples found on
      * http://developer.android.com/reference/android/app/Service.html#setForeground(boolean)
      */
+    private static final String CHANNEL_ID = "playback";
     private Notification mNotification;
     private NotificationManager mNM;
     private IRunForeground api;
@@ -43,12 +46,26 @@ public class RunForegroundManager
         Drawable draw = resources.getDrawable(R.drawable.launcher);
         iconheight = draw.getIntrinsicHeight();
 
-        mNotification = new Notification();
-        mNotification.tickerText = service.getString(R.string.notification);
-        mNotification.icon = R.drawable.notification;
-        mNotification.contentView = views;
-        mNotification.flags |= Notification.FLAG_ONGOING_EVENT;
-        mNotification.contentIntent = PendingIntent.getActivity(service, 0, intent, 0);
+        /* PodBox: targetSdk >= 26 needs a channel, >= 31 immutable PendingIntents */
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
+                    service.getString(R.string.app_name),
+                    NotificationManager.IMPORTANCE_LOW);
+            channel.setShowBadge(false);
+            mNM.createNotificationChannel(channel);
+            builder = new Notification.Builder(service, CHANNEL_ID);
+        } else {
+            builder = new Notification.Builder(service);
+        }
+        mNotification = builder
+            .setSmallIcon(R.drawable.notification)
+            .setTicker(service.getString(R.string.notification))
+            .setContent(views)
+            .setOngoing(true)
+            .setContentIntent(PendingIntent.getActivity(service, 0, intent,
+                    PendingIntent.FLAG_IMMUTABLE))
+            .build();
 
         try {
             api = new NewForegroundApi(R.string.notification, mNotification);
@@ -132,6 +149,7 @@ public class RunForegroundManager
                     views.setImageViewResource(R.id.artwork, R.drawable.launcher);
                 }
                 mWidgetUpdate = new Intent("org.rockbox.TrackUpdateInfo");
+                mWidgetUpdate.setPackage(mCurrentService.getPackageName());
                 mWidgetUpdate.putExtra("title", title);
                 mWidgetUpdate.putExtra("artist", artist);
                 mWidgetUpdate.putExtra("album", album);
@@ -155,6 +173,7 @@ public class RunForegroundManager
     {
         Logger.d("TrackFinish");
         Intent widgetUpdate = new Intent("org.rockbox.TrackFinish");
+        widgetUpdate.setPackage(mCurrentService.getPackageName());
         mCurrentService.sendBroadcast(widgetUpdate);
     }
 
@@ -176,7 +195,13 @@ public class RunForegroundManager
 
         public void startForeground()
         {
-            mCurrentService.startForeground(id, mNotification);
+            try {
+                mCurrentService.startForeground(id, mNotification);
+            } catch (RuntimeException e) {
+                /* Android 12+: ForegroundServiceStartNotAllowedException when
+                 * started from the background. Playback goes on regardless. */
+                Logger.e("startForeground failed: " + e);
+            }
         }
 
         public void stopForeground()

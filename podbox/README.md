@@ -144,6 +144,15 @@ Gradle Plugin). Gradle-Ausgaben und -Cache liegen im Build-Verzeichnis (`gradle/
 Mit `PODBOX_APK=make` läuft noch der alte Weg über `android.make`; dann signiert das Skript
 mit `apksigner` neu, weil Android 12 die alte MD5/SHA1-Signatur ablehnt.
 
+Die App zielt auf `targetSdk` 34. Rockbox liest Dateien mit C-`open()`, dafür braucht sie
+„Zugriff auf alle Dateien“ (`MANAGE_EXTERNAL_STORAGE`). Beim ersten Start öffnet die App die
+passende Einstellungsseite; nach dem Erlauben und Zurückkehren startet Rockbox. Per adb geht es
+auch direkt:
+
+```bash
+adb shell appops set --uid org.rockbox MANAGE_EXTERNAL_STORAGE allow
+```
+
 Die repo-lokale Git-Einstellung `core.eol=lf` ist nötig, sonst checkt Git unter Windows
 mit CRLF aus und `tools/configure` läuft nicht.
 
@@ -153,7 +162,3 @@ mit CRLF aus und `tools/configure` läuft nicht.
 git fetch upstream
 git merge upstream/master
 ```
-
-## TODO
-
-- Modernisierung: targetSdk ≥ 31

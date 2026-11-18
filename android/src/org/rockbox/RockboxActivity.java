@@ -24,6 +24,10 @@ package org.rockbox;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.Settings;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.ResultReceiver;
@@ -42,6 +46,35 @@ public class RockboxActivity extends Activity
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                              WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        if (hasStorageAccess())
+            startRockbox();
+        else
+            requestStorageAccess();
+    }
+
+    /* PodBox: with targetSdk >= 30 the native code can only open() files on
+     * the storage with "all files access" (MANAGE_EXTERNAL_STORAGE) */
+    private boolean mStarted = false;
+
+    private boolean hasStorageAccess()
+    {
+        return Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager();
+    }
+
+    private void requestStorageAccess()
+    {
+        Toast.makeText(this, R.string.podbox_storage_access, Toast.LENGTH_LONG).show();
+        try {
+            startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                     Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+        }
+    }
+
+    private void startRockbox()
+    {
+        mStarted = true;
         Intent intent = new Intent(this, RockboxService.class);
         intent.setAction(Intent.ACTION_MAIN);
         intent.putExtra("callback", new ResultReceiver(new Handler(getMainLooper())) {
@@ -89,7 +122,7 @@ public class RockboxActivity extends Activity
                         setServiceActivity(true);
                         break;
                     case RockboxService.RESULT_ERROR_OCCURED:
-                        Toast.makeText(RockboxActivity.this, resultData.getString("error"), Toast.LENGTH_LONG);
+                        Toast.makeText(RockboxActivity.this, resultData.getString("error"), Toast.LENGTH_LONG).show();
                         break;
                     case RockboxService.RESULT_ROCKBOX_EXIT:
                         finish();
@@ -131,6 +164,8 @@ public class RockboxActivity extends Activity
     public void onResume()
     {
         super.onResume();
+        if (!mStarted && hasStorageAccess())
+            startRockbox();
         hideSystemBars();
         setVisible(true);
         setServiceActivity(true);

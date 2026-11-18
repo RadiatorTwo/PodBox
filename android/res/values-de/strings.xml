@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 	<string name="rockbox_language_file">deutsch.lng</string>
+	<string name="podbox_storage_access">PodBox braucht Zugriff auf alle Dateien, um Musik abzuspielen. Bitte erlauben und zur&#252;ckkehren.</string>
 </resources>

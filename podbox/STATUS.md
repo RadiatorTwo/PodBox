@@ -1,8 +1,8 @@
 # PodBox – Projektstand
 
-Stand: 17.11.2026 abends, `main` (github.com/RadiatorTwo/PodBox), Etappe 3 (Gradle) fertig,
-Wärme-Fix (deep_buffer) committet. Auf dem Gerät installiert: 64-Bit-Build (arm64-v8a, NDK r27,
-APK per Gradle) mit dem deep_buffer-Fix. Die Wiedergabe ist pausiert, das Gerät kühlt ab.
+Stand: 18.11.2026, `main` (github.com/RadiatorTwo/PodBox), Modernisierung abgeschlossen
+(Etappe 4: `targetSdk` 34). Auf dem Gerät installiert: 64-Bit-Build (arm64-v8a, NDK r27,
+APK per Gradle, `targetSdk` 34, `versionCode` 2) mit "Zugriff auf alle Dateien".
 
 ## Ziel
 
@@ -98,7 +98,7 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
 | 1. NDK r27 (clang) statt r16b (GCC 4.9) | fertig, Commit `9f34d8cf78` |
 | 2. arm64-v8a als Standard | fertig, Commit `d182553d70` |
 | 3. Gradle statt `android.make` für Java/APK | fertig, Commit `5d86cc83d2` |
-| 4. `targetSdk` ≥ 31 (34 angepeilt) | offen |
+| 4. `targetSdk` 34 | fertig, siehe unten |
 
 **Etappe 3, umgesetzt:** Der native Teil bleibt bei `configure` + `make`. `build.sh` ruft
 `make libs` und dann `android/gradlew assembleDebug` auf (Gradle 8.9, AGP 8.7.3,
@@ -109,17 +109,33 @@ Neuinstallation. Gradle-Ausgaben liegen in `~/podbox/build-arm64/gradle`. Auf de
 Start, Menü, Ja/Nein-Dialog, Browser, FLAC-Wiedergabe mit Album-Art. Der alte Weg geht noch mit
 `PODBOX_APK=make`. `targetSdk` ist dabei von 5 (implizit, `minSdkVersion=5`) auf 21 gestiegen.
 
-**Etappe 4, was bei targetSdk ≥ 31 nötig wird:**
-- `android:exported` an allen Activities/Services/Receivern mit Intent-Filter
-- `PendingIntent.FLAG_IMMUTABLE` (Widgets, Notification, MediaSession)
-- Foreground-Service mit Typ `mediaPlayback` (`FOREGROUND_SERVICE`,
-  `FOREGROUND_SERVICE_MEDIA_PLAYBACK`), Notification-Channel (`RunForegroundManager.java`)
-- `POST_NOTIFICATIONS` (ab 33)
-- Speicherzugriff: Ab `targetSdk` 30 gibt es kein `requestLegacyExternalStorage` mehr. Rockbox
-  liest Dateien per C-`open()`, dafür braucht es `MANAGE_EXTERNAL_STORAGE` ("Zugriff auf alle
-  Dateien", einmal in den Einstellungen erlauben). Das ist der heikelste Punkt, unbedingt
-  zuerst testen. Bisher läuft die App mit `targetSdk=21` im Legacy-Modus.
-- Nebenbei: `android:debuggable="true"` aus dem Manifest, `versionCode`/`versionName` pflegen
+**Etappe 4, umgesetzt:**
+- Speicherzugriff: `MANAGE_EXTERNAL_STORAGE`. Fehlt der Zugriff, öffnet `RockboxActivity` die
+  Einstellungsseite ("Zugriff auf alle Dateien") und startet den Service erst nach der Rückkehr
+  (`onResume`). Per adb: `adb shell appops set --uid org.rockbox MANAGE_EXTERNAL_STORAGE allow`.
+  `WRITE_/READ_EXTERNAL_STORAGE` nur noch mit `maxSdkVersion`.
+- Foreground-Service mit Typ `mediaPlayback` (+ `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_MEDIA_PLAYBACK`), Notification per `Notification.Builder` mit Channel
+  `playback` (Wichtigkeit niedrig), `POST_NOTIFICATIONS` deklariert. `startForeground()` fängt
+  Exceptions ab, damit der Rockbox-Thread nie daran stirbt.
+- `android:exported` überall gesetzt (Service `false`, alle Service-Intents sind explizit),
+  `PendingIntent.FLAG_IMMUTABLE`, Widget-Broadcasts mit `setPackage` (implizite Broadcasts
+  erreichen Manifest-Receiver seit targetSdk 26 nicht mehr), `android:debuggable` entfernt.
+- `TelephonyMonitor`: `READ_PHONE_STATE` ist eine Laufzeit-Berechtigung, die das Gerät nie
+  bekommt, `SecurityException` wird abgefangen.
+- **Fokus-Bug:** Mit targetSdk ≥ 28 bekam `RockboxFramebuffer` keinen Fokus mehr, weil
+  `requestFocus()` lief, solange die View noch deaktiviert war; die Tasten kamen dann nicht an.
+  Jetzt holt `surfaceChanged()` den Fokus nach `setEnabled(true)`.
+- Auf dem Gerät getestet: Einstellungsseite beim ersten Start, Start mit Theme/Sprache aus
+  `/sdcard/rockbox/config.cfg`, Browser auf der SD-Karte, Wiedergabe mit Album-Art,
+  Notification, Pause (AudioTrack gestoppt, HAL im Standby, Service verlässt den Vordergrund),
+  Play aus dem Hintergrund per Medientaste (`Background started FGS: Allowed`, temporär
+  freigegeben über `MEDIA_SESSION_CALLBACK`), Plugins (`lua.rock`, `reversi.rock` per `dlopen`
+  aus `app_data`, SELinux erlaubt das mit Audit-Hinweis).
+- Nicht umgesetzt, erst auf Android 14+ nötig: `RECEIVER_EXPORTED`-Flags bei
+  `registerReceiver()` (Gerät läuft mit Android 12).
+- Nebenbefund: Das Lua-Spiel `boomshine` bricht ab (`backlight_force_on` fehlt in der
+  Android-Lua-API), unabhängig von targetSdk.
 
 ## Wärme und Audio-Hardware (Stand 17.11.)
 
@@ -151,7 +167,8 @@ Rockbox kostet ohnehin nur wenige Prozent.
   2. Lautsprecher: Rockbox gibt 48 kHz aus (eigener, billiger Resampler). Klang bei 44,1-kHz-
      Dateien vom User anhören lassen.
   3. Bildschirm-Timeout im Wiedergabe-Bildschirm kurz halten.
-- Nach dem RockboxPCM-Umbau noch nicht getestet: Pause, Track-Wechsel, Lautstärke, Stop.
+- Nach dem RockboxPCM-Umbau per adb getestet: Pause und Play (auch aus dem Hintergrund).
+  Track-Wechsel, Lautstärke und Stop (lange Tasten) noch mit den echten Tasten prüfen.
 
 ## Offene Fragen an den User (Stand 17.11.)
 
@@ -186,7 +203,6 @@ per adb nicht auslösen.
 
 ## Offene Punkte
 
-- [ ] Modernisierung Etappe 4 (targetSdk), siehe oben
 - [ ] Testordner `/sdcard/Music/PodBoxTest` (MP3/FLAC/AAC/OGG/Opus) liegt wieder auf dem Gerät,
       nach den Tests löschen und Datenbank aktualisieren
 - [ ] Leeren Ordner `F:\!Code2\PodBox\rockbox` löschen (war beim Umzug gesperrt)

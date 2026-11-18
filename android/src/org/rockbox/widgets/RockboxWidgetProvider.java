@@ -107,7 +107,7 @@ public class RockboxWidgetProvider extends AppWidgetProvider
         views = new RemoteViews(context.getPackageName(), provider.initialLayout);
 
         Intent intent = new Intent(context, RockboxActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, 0);
+        PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
         views.setOnClickPendingIntent(R.id.infoDisplay, pendingIntent);
         views.setOnClickPendingIntent(R.id.logo, pendingIntent);
 
@@ -204,7 +204,7 @@ public class RockboxWidgetProvider extends AppWidgetProvider
                                    context, RockboxService.class);
         intent.putExtra(Intent.EXTRA_KEY_EVENT,
                         new KeyEvent(KeyEvent.ACTION_UP, keycode));
-        return PendingIntent.getService(context, keycode, intent, 0);
+        return PendingIntent.getService(context, keycode, intent, PendingIntent.FLAG_IMMUTABLE);
     }
 }
 

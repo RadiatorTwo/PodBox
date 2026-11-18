@@ -37,7 +37,13 @@ public class TelephonyMonitor
             @Override
             public void run()
             {   /* need to instantiate from a thread that has a Looper */
-                tm.listen(new RockboxCallStateListener(), PhoneStateListener.LISTEN_CALL_STATE);
+                /* PodBox: READ_PHONE_STATE is a runtime permission since
+                 * targetSdk 23 and the player has no phone anyway */
+                try {
+                    tm.listen(new RockboxCallStateListener(), PhoneStateListener.LISTEN_CALL_STATE);
+                } catch (SecurityException e) {
+                    org.rockbox.Helper.Logger.i("no call state monitoring: " + e.getMessage());
+                }
             }
         });
     }
