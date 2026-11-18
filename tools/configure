@@ -688,7 +688,7 @@ androidcc () {
     # the prebuilt android NDK only supports x86_64 architecture anyway, so we can take shortcuts
     buildhost=$(uname | tr "[:upper:]" "[:lower:]")-x86_64
     GCCOPTS=`echo $CCOPTS | sed -e s/-ffreestanding// -e s/-nostdlib//`
-    LDOPTS="$LDOPTS -ldl -llog"
+    LDOPTS="$LDOPTS -ldl -llog -landroid"
     if [ "$modelname" != "ibassodx50" ] && [ "$modelname" != "ibassodx90" ]; then
         LDOPTS="$LDOPTS -Wl,-soname,librockbox.so -shared"
     fi
@@ -747,7 +747,7 @@ androidcc () {
 androidclangcc () {
     android_clang="yes"
     GCCOPTS=`echo $CCOPTS | sed -e s/-ffreestanding// -e s/-nostdlib//`
-    LDOPTS="$LDOPTS -ldl -llog -Wl,-soname,librockbox.so -shared"
+    LDOPTS="$LDOPTS -ldl -llog -landroid -Wl,-soname,librockbox.so -shared"
     SHARED_LDFLAGS="-shared"
     SHARED_CFLAGS='-fPIC'
     GLOBAL_LDOPTS="-Wl,-z,defs -Wl,-z,noexecstack -Wl,-z,text"
@@ -832,7 +832,7 @@ androidndkcc()
     buildhost=$(uname -s | tr "[:upper:]" "[:lower:]")-x86_64
 
     GCCOPTS=`echo $CCOPTS | sed -e s/-ffreestanding// -e s/-nostdlib//`
-    LDOPTS="$LDOPTS -ldl -llog"
+    LDOPTS="$LDOPTS -ldl -llog -landroid"
     SHARED_LDFLAGS="-shared"
     SHARED_CFLAGS=''
     GLOBAL_LDOPTS="-Wl,-z,defs -Wl,-z,noexecstack"

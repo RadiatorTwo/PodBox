@@ -19,8 +19,18 @@
  ****************************************************************************/
 
 
+/*
+ * PodBox: Rockbox draws straight into the Android surface with
+ * ANativeWindow instead of handing the whole framebuffer to Java on every
+ * update (JNI call, 600 KB copy into a Bitmap, software Canvas draw), and
+ * only the rows of the updated rectangle are copied.
+ */
+
 #include <jni.h>
 #include <string.h>
+#include <pthread.h>
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
 #include "config.h"
 #include "system.h"
 #include "kernel.h"
@@ -30,17 +40,15 @@
 extern JNIEnv *env_ptr;
 extern jobject RockboxService_instance;
 
-static jobject RockboxFramebuffer_instance;
-static jmethodID java_lcd_update;
-static jmethodID java_lcd_update_rect;
-
-static jclass    AndroidRect_class;
-static jmethodID AndroidRect_constructor;
-
 static int dpi;
 static int scroll_threshold;
 static bool display_on;
 static bool connected;
+
+/* the surface, protected by window_mutex (Rockbox thread draws, the UI
+ * thread creates and destroys it) */
+static pthread_mutex_t window_mutex = PTHREAD_MUTEX_INITIALIZER;
+static ANativeWindow *window;
 
 /* this might actually be called before lcd_init_device() or even main(), so
  * be sure to only access static storage initalized at library loading,
@@ -50,14 +58,6 @@ static void connect_with_java(JNIEnv* env, jobject fb_instance)
     JNIEnv e = *env;
 
     jclass fb_class = e->GetObjectClass(env, fb_instance);
-    /* cache update functions */
-    java_lcd_update      = e->GetMethodID(env, fb_class,
-                                         "update",
-                                         "(Ljava/nio/ByteBuffer;)V");
-    java_lcd_update_rect = e->GetMethodID(env, fb_class,
-                                         "update",
-                                         "(Ljava/nio/ByteBuffer;"
-                                          "Landroid/graphics/Rect;)V");
     jmethodID get_dpi    = e->GetMethodID(env, fb_class,
                                          "getDpi", "()I");
     jmethodID thresh     = e->GetMethodID(env, fb_class,
@@ -65,9 +65,6 @@ static void connect_with_java(JNIEnv* env, jobject fb_instance)
     /* these don't change with new instances so call them now */
     dpi                  = e->CallIntMethod(env, fb_instance, get_dpi);
     scroll_threshold     = e->CallIntMethod(env, fb_instance, thresh);
-
-    AndroidRect_constructor = e->GetMethodID(env, AndroidRect_class,
-                                         "<init>", "(IIII)V");
 }
 
 /*
@@ -77,35 +74,62 @@ void lcd_init_device(void)
 {
 }
 
+/* copies the rectangle (or more, if Android asks for it) to the surface */
+static void copy_to_window(int x, int y, int width, int height)
+{
+    pthread_mutex_lock(&window_mutex);
+
+    if (window && display_on)
+    {
+        ARect dirty = { .left = x, .top = y,
+                        .right = x + width, .bottom = y + height };
+        ANativeWindow_Buffer buf;
+
+        if (ANativeWindow_lock(window, &buf, &dirty) == 0)
+        {
+            /* Android may widen the dirty area (e.g. when it can't copy
+             * the previous frame back) - fill whatever it asks for */
+            int l = MAX(dirty.left, 0), t = MAX(dirty.top, 0);
+            int r = MIN(dirty.right, MIN(buf.width, LCD_WIDTH));
+            int b = MIN(dirty.bottom, MIN(buf.height, LCD_HEIGHT));
+            const fb_data *src = FBADDR(0, 0);
+            uint16_t *dst = buf.bits;
+
+            if (l == 0 && r == LCD_WIDTH && buf.stride == LCD_FBWIDTH)
+            {
+                memcpy(dst + t * LCD_FBWIDTH, src + t * LCD_FBWIDTH,
+                       (size_t)(b - t) * LCD_WIDTH * sizeof (fb_data));
+            }
+            else
+            {
+                for (int row = t; row < b; row++)
+                    memcpy(dst + row * buf.stride + l,
+                           src + row * LCD_FBWIDTH + l,
+                           (size_t)(r - l) * sizeof (fb_data));
+            }
+
+            ANativeWindow_unlockAndPost(window);
+        }
+    }
+
+    pthread_mutex_unlock(&window_mutex);
+}
+
 void lcd_update(void)
 {
-    if (display_on)
-    {
-        JNIEnv e = *env_ptr;
-        jobject buffer = e->NewDirectByteBuffer(env_ptr, FBADDR(0,0),
-                                               (jlong) FRAMEBUFFER_SIZE);
-
-        e->CallVoidMethod(env_ptr, RockboxFramebuffer_instance,
-                                   java_lcd_update, buffer);
-        e->DeleteLocalRef(env_ptr, buffer);
-    }
+    copy_to_window(0, 0, LCD_WIDTH, LCD_HEIGHT);
 }
 
 void lcd_update_rect(int x, int y, int width, int height)
 {
-    if (display_on)
-    {
-        JNIEnv e = *env_ptr;
-        jobject buffer = e->NewDirectByteBuffer(env_ptr, FBADDR(0,0),
-                                                   (jlong) FRAMEBUFFER_SIZE);
-        jobject rect = e->NewObject(env_ptr, AndroidRect_class, AndroidRect_constructor,
-                                        x, y, x + width, y + height);
-        e->CallVoidMethod(env_ptr, RockboxFramebuffer_instance,
-                                   java_lcd_update_rect, buffer, rect);
+    /* clip to the screen */
+    if (x < 0) { width += x; x = 0; }
+    if (y < 0) { height += y; y = 0; }
+    width = MIN(width, LCD_WIDTH - x);
+    height = MIN(height, LCD_HEIGHT - y);
 
-        e->DeleteLocalRef(env_ptr, buffer);
-        e->DeleteLocalRef(env_ptr, rect);
-    }
+    if (width > 0 && height > 0)
+        copy_to_window(x, y, width, height);
 }
 
 /*
@@ -118,20 +142,30 @@ JNIEXPORT void JNICALL
 Java_org_rockbox_RockboxFramebuffer_surfaceCreated(JNIEnv *env, jobject this,
                                                      jobject surfaceholder)
 {
-    (void)surfaceholder;
-    jclass rect;
-
-    /* Update RockboxFramebuffer_instance */
-    RockboxFramebuffer_instance = (*env)->NewGlobalRef(env, this);
-    rect = (*env)->FindClass(env, "android/graphics/Rect");
-    AndroidRect_class = (*env)->NewGlobalRef(env, rect);
     /* possibly a new instance - reconnect */
     if (!connected)
     {
         connect_with_java(env, this);
         connected = true;
     }
-    display_on = true;
+
+    jclass holder_class = (*env)->GetObjectClass(env, surfaceholder);
+    jmethodID get_surface = (*env)->GetMethodID(env, holder_class,
+                                "getSurface", "()Landroid/view/Surface;");
+    jobject surface = (*env)->CallObjectMethod(env, surfaceholder, get_surface);
+
+    pthread_mutex_lock(&window_mutex);
+    if (window)
+        ANativeWindow_release(window);
+    window = ANativeWindow_fromSurface(env, surface);
+    if (window)
+        ANativeWindow_setBuffersGeometry(window, LCD_WIDTH, LCD_HEIGHT,
+                                         WINDOW_FORMAT_RGB_565);
+    display_on = window != NULL;
+    pthread_mutex_unlock(&window_mutex);
+
+    (*env)->DeleteLocalRef(env, surface);
+    (*env)->DeleteLocalRef(env, holder_class);
 
     /* need to wait for button_queue to be valid to post to */
     wait_rockbox_ready();
@@ -150,14 +184,14 @@ JNIEXPORT void JNICALL
 Java_org_rockbox_RockboxFramebuffer_surfaceDestroyed(JNIEnv *e, jobject this,
                                                     jobject surfaceholder)
 {
-    (void)this; (void)surfaceholder;
+    (void)e; (void)this; (void)surfaceholder;
 
+    pthread_mutex_lock(&window_mutex);
     display_on = false;
-
-    (*e)->DeleteGlobalRef(e, RockboxFramebuffer_instance);
-    RockboxFramebuffer_instance = NULL;
-    (*e)->DeleteGlobalRef(e, AndroidRect_class);
-    AndroidRect_class = NULL;
+    if (window)
+        ANativeWindow_release(window);
+    window = NULL;
+    pthread_mutex_unlock(&window_mutex);
 }
 
 bool lcd_active(void)

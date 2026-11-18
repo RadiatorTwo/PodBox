@@ -175,7 +175,10 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     Last unverändert (Prozess ca. 6 % eines Kerns bei Bildschirm an, Browser).
     Bekannte Grenze: Die Visualisierungs-Plugins (fft, oscilloscope, vu_meter) lesen den
     Wiedergabekanal als 16 Bit und zeigen bei Rockbox-Wiedergabe Unsinn. Ungetestet: Crossfade,
-    Sprachausgabe/Pieptöne während der Wiedergabe.
+    Sprachausgabe/Pieptöne während der Wiedergabe. Nachtrag: Crossfade (3 s) zwischen zwei
+    352,8-kHz-Testtönen geprüft (lineare Rampe von 0x3FFFFF18 auf 0), Tastenklicks kommen als
+    korrekt hochgeschobene 16-Bit-Werte im Mixer an. fft und oscilloscope lesen den 32-Bit-Kanal
+    (Plugin-API `mixer_channel_get_frame_bytes()`), pcmbuf-Chunks haben dafür immer 2048 Frames.
 24. **Halbband-Filter für exakt 2:1:** Rockbox' Resampler ist eine 4-Punkt-Hermite-Interpolation
     ohne Tiefpass; beim Halbieren der Rate spiegelte sich alles oberhalb der neuen
     Nyquist-Frequenz zurück. Bei exakt doppelter Eingangsrate (352,8 → 176,4, 384 → 192 kHz,
@@ -184,6 +187,12 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
     Akkumulator): flach (< 0,01 dB) bis 0,216 × Eingangsrate, ab 0,284 × Eingangsrate unter
     −97 dB, Verzögerung 47 Eingangssamples. Gemessen mit 352,8-kHz/24-Bit-Testtönen: 1 kHz
     kommt unverändert an, 120 kHz (würde sonst auf 56,4 kHz gespiegelt) liegt bei −113 dB.
+25. **Display nativ per ANativeWindow:** `lcd-android.c` hat bei jeder Aktualisierung den ganzen
+    Framebuffer per JNI an Java gegeben; dort wurden 600 KB in ein Bitmap kopiert und per
+    Software-Canvas gezeichnet, auch bei Teil-Updates. Jetzt schreibt Rockbox direkt in die
+    Surface (`ANativeWindow_lock` mit Dirty-Rechteck, nur die geänderten Zeilen werden kopiert,
+    `-landroid`). `RockboxFramebuffer.java` zeichnet nicht mehr. Gemessen im WPS bei Wiedergabe
+    (je 20 s): PodBox 12–15 % → 10–11,5 % eines Kerns; Bildschirm aus/an geht.
 ## Modernisierung
 
 | Etappe | Stand |
@@ -252,10 +261,11 @@ Rockbox kostet ohnehin nur wenige Prozent.
   Lautsprecher: `primary`/`deep_buffer`, 44,1/48 kHz, Mixer läuft mit 48 kHz.
 - Rockbox: DSP, pcmbuf und Mixer mit 32 Bit (Fix 23), Originalrate bis 192 kHz (Fix 18).
   Offen: DSD und Raten über 192 kHz (Hardware-Grenze, Fix 21).
-- Größter Rest bei Bildschirm an (Stand 18.11., Direktpfad): Rockbox-Thread ca. 11,6 % und
-  surfaceflinger ca. 9,8 %. Der WPS zeichnet wegen der scrollenden Albumzeile ca. 12-mal pro
-  Sekunde neu, jedes Mal als Vollbild-Kopie (`RockboxFramebuffer.update()`). Nächster Ansatz:
-  nur den geänderten Bereich kopieren/zeichnen, Scrollen ggf. drosseln.
+- Bildschirm an (Stand 18.11.): Der WPS zeichnet wegen der scrollenden Albumzeile 12,5-mal pro
+  Sekunde neu. Seit Fix 25 kostet das Zeichnen PodBox nur noch ca. 2 % eines Kerns (Bildschirm
+  aus: Rockbox-Thread 5 %, Audio-Thread 0,5 %). surfaceflinger braucht 8–9 % (die Ebene läuft
+  schon als Hardware-Overlay `DEVICE`, das ist der Grundpreis pro Bild); weniger geht nur mit
+  weniger Bildern pro Sekunde (langsameres Scrollen / kein Scrollen im WPS, offene Frage).
 - Mögliche nächste Schritte für Effizienz/Klang (noch nicht entschieden):
   1. ~~Kopfhörer: Originalrate bis 192 kHz~~ erledigt (Fix 18), ~~24-Bit-Ausgabe~~ erledigt
      (Fix 23).

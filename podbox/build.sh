@@ -20,9 +20,11 @@ KS=~/podbox/podbox.keystore
 mkdir -p "$BUILD" && cd "$BUILD"
 # package id, see tools/configure (paths) and android/build.gradle
 export PODBOX_APP_ID=${PODBOX_APP_ID:-com.blueshark.player}
-# reconfigure when the package id or the memory size (tools/configure) changed
+# reconfigure when tools/configure changed something the build depends on
+# (package id, memory size, libandroid for the display)
 if [ ! -f Makefile ] || ! grep -q "/data/data/$PODBOX_APP_ID/" autoconf.h 2>/dev/null \
-        || ! grep -q "^export MEMORYSIZE=32$" Makefile; then
+        || ! grep -q "^export MEMORYSIZE=32$" Makefile \
+        || ! grep -q -- "-landroid" Makefile; then
     "$SRC/tools/configure" --target=201 --lcdwidth=480 --lcdheight=640 --type=N
 fi
 

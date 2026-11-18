@@ -20,12 +20,7 @@
 
 package org.rockbox;
 
-import java.nio.ByteBuffer;
-
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Rect;
 import android.util.DisplayMetrics;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -38,7 +33,6 @@ public class RockboxFramebuffer extends SurfaceView
 {
     private final DisplayMetrics metrics;
     private final ViewConfiguration view_config;
-    private Bitmap btm;
 
     /* first stage init; needs to run from a thread that has a Looper 
      * setup stuff that needs a Context */
@@ -56,37 +50,7 @@ public class RockboxFramebuffer extends SurfaceView
         setEnabled(false);
     }
 
-    private void update(ByteBuffer framebuffer)
-    {
-        SurfaceHolder holder = getHolder();                            
-        Canvas c = holder.lockCanvas();
-        if (c == null)
-			return;
-
-        btm.copyPixelsFromBuffer(framebuffer);
-        synchronized (holder)
-        { /* draw */
-            c.drawBitmap(btm, 0.0f, 0.0f, null);
-        }
-        holder.unlockCanvasAndPost(c);
-    }
-    
-    private void update(ByteBuffer framebuffer, Rect dirty)
-    {
-        SurfaceHolder holder = getHolder();         
-        Canvas c = holder.lockCanvas(dirty);
-        
-        if (c == null)
-			return;
-
-        /* can't copy a partial buffer, but it doesn't make a noticeable difference anyway */
-        btm.copyPixelsFromBuffer(framebuffer);
-        synchronized (holder)
-        {   /* draw */
-            c.drawBitmap(btm, dirty, dirty, null);   
-        }
-        holder.unlockCanvasAndPost(c);
-    }
+    /* PodBox: drawing happens natively (lcd-android.c, ANativeWindow) */
 
     public boolean onTouchEvent(MotionEvent me)
     {
@@ -185,7 +149,6 @@ public class RockboxFramebuffer extends SurfaceView
     public native void surfaceDestroyed(SurfaceHolder holder);
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
     {
-        btm = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
         setEnabled(true);
         /* PodBox: a disabled view can't take focus, and with targetSdk >= 28
          * Android no longer hands it out later on its own. Without focus the
