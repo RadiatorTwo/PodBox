@@ -288,8 +288,7 @@ Rockbox kostet ohnehin nur wenige Prozent.
 - Mögliche nächste Schritte für Effizienz/Klang (noch nicht entschieden):
   1. ~~Kopfhörer: Originalrate bis 192 kHz~~ erledigt (Fix 18), ~~24-Bit-Ausgabe~~ erledigt
      (Fix 23).
-  2. Lautsprecher: Rockbox gibt 48 kHz aus (eigener, billiger Resampler). Klang bei 44,1-kHz-
-     Dateien vom User anhören lassen.
+  2. ~~Lautsprecher~~: Das Gerät hat keinen.
   3. Bildschirm-Timeout im Wiedergabe-Bildschirm kurz halten.
 - Nach dem RockboxPCM-Umbau per adb getestet: Pause und Play (auch aus dem Hintergrund).
   Track-Wechsel, Lautstärke und Stop (lange Tasten) noch mit den echten Tasten prüfen.
@@ -300,12 +299,15 @@ Audio-Umbau fertig bis auf DSD (vom User zurückgestellt, keine Prio): AAudio 32
 bis 192 kHz, 32-Bit-Pfad DSP→Ausgang (Fix 23), Halbband 2:1 (Fix 24), natives Display (Fix 25).
 Alles gepusht (`516aa192a5`). Auf dem Gerät installiert ist dieser Stand.
 
-Vom User zu testen (per adb nicht möglich):
-1. Lautsprecher mit AAudio (Kopfhörer stecken seit 18.11. morgens)
-2. Kopfhörer während der Wiedergabe ausstecken (Ausgang sollte neu öffnen)
-3. ANR: Bildschirm aus, sofort "unten", nach 10 s an (siehe unten)
-4. ~~Wärme im Alltag~~: laut User (18.11.) wird das Gerät "nicht mehr ansatzweise so warm"
-5. Anhören: 24-Bit-Dateien, MP3, Crossfade
+Vom User getestet (18.11.):
+- Das Gerät hat **keinen Lautsprecher**. Der "Lautsprecher"-Pfad in der Android-Audio-Konfiguration
+  (`primary`/`deep_buffer`, 48 kHz) gibt es nur in der Software; Hinweise darauf weiter oben
+  (Wärme-Messungen, Lautsprecher-Ideen) sind damit gegenstandslos.
+- Kopfhörer ausstecken: nichts zu hören, kein Absturz. Wiedereinstecken: kurz Ton, dann einige
+  Sekunden Pause, dann geht es weiter (offen, siehe unten).
+- Bildschirm aus, sofort "unten", nach 10 s an: kein Absturz (der ANR war ein adb-Artefakt).
+- Wärme: wird "nicht mehr ansatzweise so warm".
+- Anhören 24-Bit, MP3, Crossfade: in Ordnung.
 
 Vom User zu entscheiden: derzeit nichts offen.
 
