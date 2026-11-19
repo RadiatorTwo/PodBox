@@ -1386,6 +1386,12 @@ const char *get_token_value(struct gui_wps *gwps,
             if (intval)
             {
                 int minvol = sound_min(SOUND_VOLUME);
+#if CONFIG_PLATFORM & PLATFORM_ANDROID
+                /* PodBox: levels 0..max instead of dB up to 0 */
+                int topvol = sound_max(SOUND_VOLUME);
+#else
+                int topvol = 0;
+#endif
                 if (limit == TOKEN_VALUE_ONLY)
                 {
                     numeric_ret = global_status.volume;
@@ -1394,18 +1400,18 @@ const char *get_token_value(struct gui_wps *gwps,
                 {
                     numeric_ret = 1;
                 }
-                else if (global_status.volume == 0)
+                else if (global_status.volume == topvol)
                 {
                     numeric_ret = limit - 1;
                 }
-                else if (global_status.volume > 0)
+                else if (global_status.volume > topvol)
                 {
                     numeric_ret = limit;
                 }
                 else
                 {
                     numeric_ret = (limit-3) * (global_status.volume - minvol - 1)
-                                / (-1 - minvol) + 2;
+                                / (topvol - 1 - minvol) + 2;
                 }
             }
             numeric_buf = buf;
@@ -1640,6 +1646,12 @@ const char *get_token_value(struct gui_wps *gwps,
             else
                 return NULL;
 #endif
+        case SKIN_TOKEN_WHEEL_SEEK:
+#ifdef HAVE_WHEEL_SEEK
+            if (wps_wheel_seek_active())
+                return "s";
+#endif
+            return NULL;
         case SKIN_TOKEN_BUTTON_VOLUME:
             if (global_status.last_volume_change &&
                 TIME_BEFORE(current_tick, global_status.last_volume_change +

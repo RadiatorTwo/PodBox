@@ -49,6 +49,10 @@ void wps_do_action(enum wps_do_action_type, bool updatewps);
 #define wps_do_playpause(update) wps_do_action(WPS_PLAYPAUSE, update)
 
 struct wps_state *get_wps_state(void);
+#ifdef HAVE_WHEEL_SEEK
+/* PodBox: true while the wheel seeks instead of changing the volume */
+bool wps_wheel_seek_active(void);
+#endif
 
 /* in milliseconds */
 #define DEFAULT_SKIP_THRESH          3000l

@@ -225,7 +225,11 @@ void draw_progressbar(struct gui_wps *gwps, struct skin_viewport* skin_viewport,
     {
         int minvol = sound_min(SOUND_VOLUME);
         int maxvol = sound_max(SOUND_VOLUME);
-#if defined(HAVE_PERCEPTUAL_VOLUME) || defined(HAVE_TOUCHSCREEN)
+/* PodBox: on Android the bar is linear in dB, so every wheel detent moves it
+ * the same distance (the "normalized" bar barely moved at low volume and
+ * jumped at high volume) */
+#if (defined(HAVE_PERCEPTUAL_VOLUME) || defined(HAVE_TOUCHSCREEN)) \
+    && !(CONFIG_PLATFORM & PLATFORM_ANDROID)
         length = 1000;
         end = to_normalized_volume(global_status.volume, minvol, maxvol, length);
 #else

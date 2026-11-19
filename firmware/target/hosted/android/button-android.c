@@ -28,6 +28,7 @@
 #include "system.h"
 #include "touchscreen.h"
 #include "powermgmt.h"
+#include <time.h>
 
 extern JNIEnv *env_ptr;
 extern jclass  RockboxService_class;
@@ -36,6 +37,62 @@ extern jobject RockboxService_instance;
 static int last_y, last_x;
 static int last_btns;
 static volatile int latched_btns;
+
+/* PodBox: the hardware of the F20 Pro+ is not clean.
+ *
+ * The wheel sometimes reports a single detent in the wrong direction while
+ * it is turned. A change of direction shortly after the previous detent
+ * therefore only counts once a second detent confirms it, then both are
+ * posted. After a pause, the first detent in the new direction counts.
+ *
+ * The keys (wheel button above all) bounce: a press sometimes arrives as
+ * press, release, press, release. A release is only reported once the key
+ * stayed up for KEY_DEBOUNCE_MS, a press within that time continues the
+ * first one. */
+#define WHEEL_REVERSE_MS   250  /* a reversal within this needs confirmation */
+#define KEY_DEBOUNCE_MS     60
+
+static int  wheel_dir;          /* direction of the last posted detent */
+static long wheel_last_ms;      /* time of the last detent (posted or not) */
+static int  wheel_reverse;      /* unconfirmed detents against wheel_dir */
+
+static volatile int  released_btns;    /* up, but not long enough */
+static volatile long released_ms;
+
+static long now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
+}
+
+/* one wheel detent, button is DPAD_UP or DPAD_DOWN (|BUTTON_REL) */
+static void wheel_detent(unsigned button)
+{
+    int dir = (button & BUTTON_DPAD_DOWN) ? 1 : -1;
+    long now = now_ms();
+    long interval = now - wheel_last_ms;
+    int count = 1;
+
+    wheel_last_ms = now;
+    if (dir != wheel_dir && wheel_dir != 0 && interval < WHEEL_REVERSE_MS)
+    {
+        if (++wheel_reverse < 2)
+            return;     /* maybe a glitch, wait for the next detent */
+        count = wheel_reverse;
+    }
+    wheel_reverse = 0;
+    if (dir != wheel_dir)
+        interval = 0;   /* no acceleration right after a reversal */
+    wheel_dir = dir;
+
+    /* the data is the time since the previous detent (acceleration in the
+     * WPS), 0 = unknown */
+    if (interval > 1000)
+        interval = 0;
+    while (count--)
+        button_queue_post(button, interval);
+}
 
 static enum {
     STATE_UNKNOWN,
@@ -82,7 +139,7 @@ Java_org_rockbox_RockboxFramebuffer_buttonHandler(JNIEnv*env, jclass class,
         {
             wait_rockbox_ready();
             reset_poweroff_timer();
-            button_queue_post(button, 0);
+            wheel_detent(button);
         }
         return true;
     }
@@ -115,6 +172,8 @@ Java_org_rockbox_RockboxFramebuffer_buttonHandler(JNIEnv*env, jclass class,
 
     if (state)
     {
+        /* a press shortly after the release continues it (bounce) */
+        released_btns &= ~button;
         last_btns |= button;
         /* PodBox: latch the press until button_read_device() saw it once,
          * otherwise presses shorter than one tick get lost */
@@ -123,6 +182,8 @@ Java_org_rockbox_RockboxFramebuffer_buttonHandler(JNIEnv*env, jclass class,
     else
     {
         last_btns &= (~button);
+        released_ms = now_ms();
+        released_btns |= button;
     }
 
     return true;
@@ -153,6 +214,14 @@ int button_read_device(int *data)
 {
     int btn = last_btns | latched_btns;
     latched_btns = 0;
+    /* keys count as held until they stayed up for KEY_DEBOUNCE_MS */
+    if (released_btns)
+    {
+        if (now_ms() - released_ms < KEY_DEBOUNCE_MS)
+            btn |= released_btns;
+        else
+            released_btns = 0;
+    }
     /* Get grid button/coordinates based on the current touchscreen mode
      *
      * Caveat: the caller seemingly depends on *data always being filled with

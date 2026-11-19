@@ -237,6 +237,7 @@ enum skin_token_type {
 
     /* buttons */
     SKIN_TOKEN_BUTTON_VOLUME,
+    SKIN_TOKEN_WHEEL_SEEK, /* PodBox: wheel seeks instead of volume */
     SKIN_TOKEN_LASTTOUCH,
     SKIN_TOKEN_TOUCHREGION,
     SKIN_TOKEN_HAVE_TOUCH,

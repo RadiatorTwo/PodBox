@@ -67,14 +67,13 @@ public class RockboxPCM
         postVolumeChangedEvent(rbvolume);
     }
 
-    /* PodBox: Rockbox and Android share one volume. Rockbox shows real dB,
-     * so its value has to follow Android's volume curve (on the F20 Pro+:
-     * 100 steps, 1 = -58 dB, 20 = -40 dB, 60 = -17 dB, 100 = 0 dB). The old
-     * code spread -99..0 dB evenly over the steps, so "-79 dB" was really
-     * about -39 dB and the lowest Rockbox steps were still clearly audible.
-     * Below Android's lowest step the native output attenuates the rest. */
+    /* PodBox: Rockbox and Android share one volume. Rockbox has STEPS
+     * levels, each maps to the Android step closest to it in dB using
+     * Android's volume curve (on the F20 Pro+: 100 steps, 1 = -58 dB,
+     * 20 = -40 dB, 60 = -17 dB, 100 = 0 dB). */
     private float[] streamDb;
     private boolean streamDbHeadset;
+    private int streamDbLowest;     /* quietest audible Android step */
 
     /* attenuation in dB of every Android step, index 0 = muted */
     private float[] getStreamDb()
@@ -94,21 +93,59 @@ public class RockboxPCM
                 Logger.e("getStreamVolumeDb failed: " + e);
                 return null;
             }
+            /* the quietest audible step (Android may report -infinity
+             * for the lowest steps, that broke the level math once and
+             * jumped to full volume) */
+            int lowest = 0;
+            for (int i = 1; i <= maxstreamvolume; i++)
+            {
+                if (!Float.isInfinite(db[i]) && !Float.isNaN(db[i])
+                    && db[i] > -120.0f)
+                {
+                    lowest = i;
+                    break;
+                }
+            }
+            Logger.i("PodBox: volume curve " + (headset ? "headset" : "speaker")
+                     + ": step 1 = " + db[1] + " dB, quietest audible = step "
+                     + lowest + " (" + (lowest > 0 ? db[lowest] : 0) + " dB), "
+                     + maxstreamvolume + " = " + db[maxstreamvolume] + " dB");
+            if (lowest == 0 || db[lowest] >= -1.0f)
+                return null;
             streamDb = db;
+            streamDbLowest = lowest;
             streamDbHeadset = headset;
         }
         return streamDb;
     }
 
-    /* Android step -> Rockbox volume in dB (-99..0) */
+    /* PodBox: Rockbox volume is 0..STEPS levels (0 = muted), must match
+     * AUDIOHW_SETTING(VOLUME) in firmware/export/android_codec.h. Level 1 is
+     * Android's quietest step, STEPS is full volume, the levels in between
+     * are spaced evenly in dB (about 2 dB on the F20 Pro+). */
+    private static final int STEPS = 30;
+
+    /* attenuation in dB of a Rockbox level >= 1 */
+    private float levelDb(float[] db, int level)
+    {
+        float lowest = db[streamDbLowest];
+        return lowest - lowest * (level - 1) / (STEPS - 1);
+    }
+
+    /* Android step -> Rockbox level (0..STEPS) */
     private int streamToRockbox(int index)
     {
         float[] db = getStreamDb();
-        if (db == null)
-            return ((maxstreamvolume - index) * -99) / maxstreamvolume;
         if (index <= 0)
-            return -99;
-        return Math.max(-99, Math.min(0, Math.round(db[Math.min(index, maxstreamvolume)])));
+            return 0;
+        if (db == null)
+            return Math.max(1, (index * STEPS + maxstreamvolume / 2) / maxstreamvolume);
+        if (index <= streamDbLowest)
+            return 1;
+        float lowest = db[streamDbLowest];
+        float d = db[Math.min(index, maxstreamvolume)];
+        int level = Math.round((d - lowest) / -lowest * (STEPS - 1)) + 1;
+        return Math.max(1, Math.min(STEPS, level));
     }
 
     private void setupVolumeHandler()
@@ -170,33 +207,36 @@ public class RockboxPCM
             if (Math.round(volume / 10.0f) != postedVolume)
             {
                 Logger.i("PodBox: ignoring startup volume " + volume / 10.0f
-                         + " dB, Android has " + postedVolume + " dB");
+                         + ", Android has " + postedVolume);
                 return;
             }
             volumeSynced = true;
         }
-        /* Rockbox 'volume' is 0..-990 deci-dB attenuation */
-        float target = volume / 10.0f;
+        /* Rockbox 'volume' is the level (0..STEPS) times 10 */
+        int level = Math.round(volume / 10.0f);
         float[] db = getStreamDb();
         if (db == null)
         {
-            set_volume_linear(volume);
+            set_volume_linear(level);
             return;
         }
 
         int oldstreamvolume = audiomanager.getStreamVolume(streamtype);
         int streamvolume;
-        if (target <= -99.0f)
-            streamvolume = 0; /* lowest Rockbox step = muted */
+        float target = level > 0 ? levelDb(db, level) : 0;
+        /* half a level: Android steps this close count as this level */
+        float tolerance = -db[streamDbLowest] / (STEPS - 1) / 2;
+        if (level <= 0)
+            streamvolume = 0; /* level 0 = muted */
         else if (oldstreamvolume > 0 && oldstreamvolume <= maxstreamvolume
-                 && Math.abs(db[oldstreamvolume] - target) <= 0.5f)
+                 && Math.abs(db[oldstreamvolume] - target) <= tolerance)
             /* Android already is at this volume (e.g. the change came from
              * Android itself), keep its step to avoid ping-pong */
             streamvolume = oldstreamvolume;
         else
         {   /* lowest step that is not quieter than the target */
             streamvolume = maxstreamvolume;
-            for (int i = 1; i <= maxstreamvolume; i++)
+            for (int i = streamDbLowest; i <= maxstreamvolume; i++)
             {
                 if (db[i] >= target)
                 {
@@ -206,16 +246,8 @@ public class RockboxPCM
             }
         }
 
-        /* the rest (only below the lowest Android step, or less than one
-         * step) is done by the native output, it can only attenuate */
-        float pcmvolume = 1.0f;
-        if (streamvolume > 0)
-        {
-            float rest = target - db[streamvolume];
-            if (rest < 0)
-                pcmvolume = (float)Math.pow(10.0, rest / 20.0);
-        }
-        nativeSetGain(pcmvolume);
+        /* Android's step is the whole volume (no extra attenuation) */
+        nativeSetGain(1.0f);
 
         if (streamvolume != oldstreamvolume) {
             Logger.d("java:setStreamVolume("+streamvolume+")");
@@ -225,21 +257,12 @@ public class RockboxPCM
     }
 
     /* old mapping, for Android < 9 (no getStreamVolumeDb()) */
-    private void set_volume_linear(int volume)
+    private void set_volume_linear(int level)
     {
-        /* Android streams have rather low resolution volume control,
-           typically 8 or 15 steps.
-           Therefore we use the pcm volume to add finer steps between
-           every android stream volume step.
-           It's not "real" dB, but it gives us 100 volume steps.
-        */
-
-        float fraction = 1 - (volume / -990.0f);
-        int streamvolume = (int)Math.ceil(maxstreamvolume * fraction);
-        if (streamvolume > 0) {
-            float streamfraction = (float)streamvolume / maxstreamvolume;
-            nativeSetGain(fraction / streamfraction);
-        }
+        int streamvolume = (level * maxstreamvolume + STEPS / 2) / STEPS;
+        if (level > 0 && streamvolume < 1)
+            streamvolume = 1;
+        nativeSetGain(1.0f);
 
         int oldstreamvolume = audiomanager.getStreamVolume(streamtype);
         if (streamvolume != oldstreamvolume) {

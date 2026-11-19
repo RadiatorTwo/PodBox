@@ -704,6 +704,154 @@ static inline int action_wpsab_single(long button)
     return button;
 }
 
+#ifdef HAVE_WHEEL_SEEK
+/* PodBox: the wheel either changes the volume or seeks in the track, the
+ * wheel button switches between both (like on an iPod). Seeking collects
+ * the detents and jumps once the wheel rests, so turning doesn't make the
+ * codec seek for every detent. Without turning, the wheel goes back to
+ * volume after a few seconds. */
+#define WHEEL_SEEK_COMMIT   (HZ*2/5) /* jump after the wheel rested 400 ms */
+#define WHEEL_SEEK_TIMEOUT  (HZ*5)   /* back to volume after 5 s */
+
+static bool wheel_seek = false;
+static long wheel_seek_last;           /* tick of the last detent/toggle */
+static long wheel_seek_pending;        /* ms not jumped yet */
+static bool wheel_seek_moved;
+static struct mp3entry *wheel_seek_id3;
+
+bool wps_wheel_seek_active(void)
+{
+    return wheel_seek;
+}
+
+/* ms to jump for one detent, from the ms since the previous detent.
+ * The wheel driver reports at most ~10 detents/s (never less than ~100 ms
+ * apart, measured), so fast turning means 100-130 ms. */
+static long wheel_seek_step(intptr_t interval)
+{
+    if (interval <= 0 || interval >= 180)
+        return 5000;
+    if (interval >= 130)
+        return 10000;
+    if (interval >= 110)
+        return 20000;
+    return 30000;
+}
+
+static void wheel_seek_refresh(void)
+{
+    FOR_NB_SCREENS(i)
+        skin_update(WPS, i, SKIN_REFRESH_NON_STATIC);
+}
+
+/* jump to the collected position */
+static void wheel_seek_commit(void)
+{
+    struct wps_state *gstate = get_wps_state();
+    struct mp3entry *id3 = gstate->id3;
+
+    if (wheel_seek_moved && id3 && id3 == wheel_seek_id3
+        && (audio_status() & AUDIO_STATUS_PLAY))
+    {
+        long target = (long)id3->elapsed + wheel_seek_pending;
+        if (target < 0)
+            target = 0;
+        audio_pre_ff_rewind();
+        id3->elapsed = target;
+        audio_ff_rewind(target);
+    }
+    gstate->ff_rewind_count = 0;
+    wheel_seek_pending = 0;
+    wheel_seek_moved = false;
+}
+
+static void wheel_seek_toggle(void)
+{
+    if (wheel_seek)
+        wheel_seek_commit();
+    wheel_seek = !wheel_seek;
+    wheel_seek_last = current_tick;
+    wheel_seek_refresh();
+}
+
+static void wheel_seek_end(void)
+{
+    if (!wheel_seek)
+        return;
+    wheel_seek_commit();
+    wheel_seek = false;
+}
+
+/* one detent, direction 1 or -1 */
+static void wheel_seek_turn(int direction, intptr_t interval)
+{
+    struct wps_state *gstate = get_wps_state();
+    struct mp3entry *id3 = gstate->id3;
+
+    wheel_seek_last = current_tick;
+    if (!id3 || !id3->length || !(audio_status() & AUDIO_STATUS_PLAY))
+        return;
+    if (id3 != wheel_seek_id3)
+    {   /* track changed while turning: start over */
+        wheel_seek_id3 = id3;
+        wheel_seek_pending = 0;
+        wheel_seek_moved = false;
+    }
+
+    long pending = wheel_seek_pending + direction * wheel_seek_step(interval);
+    long elapsed = id3->elapsed;
+    /* stay inside the track, a jump to the very end would skip it */
+    if (elapsed + pending > (long)id3->length - 1000)
+        pending = (long)id3->length - 1000 - elapsed;
+    if (elapsed + pending < 0)
+        pending = -elapsed;
+
+    wheel_seek_pending = pending;
+    wheel_seek_moved = true;
+    gstate->ff_rewind_count = pending;
+    wheel_seek_refresh();
+}
+
+/* called on every pass of the WPS loop */
+static void wheel_seek_tick(void)
+{
+    if (!wheel_seek)
+        return;
+    if (wheel_seek_moved
+        && TIME_AFTER(current_tick, wheel_seek_last + WHEEL_SEEK_COMMIT))
+    {
+        wheel_seek_commit();
+        wheel_seek_refresh();
+    }
+    if (TIME_AFTER(current_tick, wheel_seek_last + WHEEL_SEEK_TIMEOUT))
+    {
+        wheel_seek_end();
+        wheel_seek_refresh();
+    }
+}
+
+/* volume levels (of 30) for one detent. The driver caps the wheel at ~10
+ * detents/s, so besides the speed the length of a quick turn counts: the
+ * longer the wheel keeps turning quickly, the bigger the steps.
+ * Slow (>= 200 ms per detent): always 1 level. */
+static int wheel_volume_step(intptr_t interval)
+{
+    static int run; /* detents in a row that came quickly */
+
+    if (interval <= 0 || interval >= 200)
+    {
+        run = 0;
+        return 1;
+    }
+    run++;
+    if (run >= 6 && interval < 130)
+        return 3;   /* long and as fast as the wheel reports */
+    if (run >= 3)
+        return 2;
+    return 1;
+}
+#endif /* HAVE_WHEEL_SEEK */
+
 /* The WPS can be left in two ways:
  *      a)  call a function, which draws over the wps. In this case, the wps
  *          will be still active (i.e. the below function didn't return)
@@ -734,6 +882,11 @@ long gui_wps_show(void)
     ab_reset_markers();
 
     wps_state_init();
+#ifdef HAVE_WHEEL_SEEK
+    wheel_seek = false;
+    wheel_seek_pending = 0;
+    wheel_seek_moved = false;
+#endif
     while ( 1 )
     {
         bool hotkey = false;
@@ -798,6 +951,34 @@ long gui_wps_show(void)
             storage_spin();
 
         button = skin_wait_for_action(WPS, CONTEXT_WPS|ALLOW_SOFTLOCK, HZ/5);
+
+#ifdef HAVE_WHEEL_SEEK
+        if (wheel_seek)
+        {
+            switch (button)
+            {
+                case ACTION_WPS_VOLUP:
+                case ACTION_WPS_VOLDOWN:
+                    wheel_seek_turn(button == ACTION_WPS_VOLUP ? 1 : -1,
+                                    get_action_data());
+                    button = ACTION_NONE; /* only a redraw left */
+                    break;
+                case ACTION_WPS_WHEELMODE:
+                case ACTION_NONE:
+                case ACTION_REDRAW:
+                /* the press of a key only mapped on release/repeat; ending
+                 * here made the wheel button's release switch seek on again */
+                case ACTION_UNKNOWN:
+                    break;
+                default:
+                    /* anything else ends seeking, after the jump */
+                    if (!IS_SYSEVENT(button))
+                        wheel_seek_end();
+                    break;
+            }
+            wheel_seek_tick();
+        }
+#endif
 
         /* Exit if audio has stopped playing. This happens e.g. at end of
            playlist or if using the sleep timer. */
@@ -873,12 +1054,25 @@ long gui_wps_show(void)
                 wps_do_action(WPS_PLAYPAUSE, true);
                 break;
 
+#ifdef HAVE_WHEEL_SEEK
+            case ACTION_WPS_WHEELMODE:
+                wheel_seek_toggle();
+                update = false;
+                break;
+#endif
             case ACTION_WPS_VOLUP: /* fall through */
             case ACTION_WPS_VOLDOWN:
+            {
+#ifdef HAVE_WHEEL_SEEK
+                int steps = wheel_volume_step(get_action_data());
+#else
+                int steps = 1;
+#endif
                 if (button == ACTION_WPS_VOLUP)
-                    adjust_volume(1);
+                    adjust_volume(steps);
                 else
-                    adjust_volume(-1);
+                    adjust_volume(-steps);
+            }
 
                 setvol();
                 FOR_NB_SCREENS(i)

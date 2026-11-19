@@ -27,7 +27,8 @@
 %Fl(2,27-Adobe-Helvetica-Bold.fnt)
 %Fl(3,27-Adobe-Helvetica.fnt)
 %V(25,22,430,27,2)%Vf(0F0B00)
-%acNOW PLAYING
+# PodBox: the header shows when the wheel seeks (wheel button toggles)
+%ac%?mS<%<%<  SEEK  %>%>|NOW PLAYING>
 
 #
 # track & next track info - no album art

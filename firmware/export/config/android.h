@@ -89,6 +89,11 @@
  * plugin channels stay 16 bits and are scaled up in the mixer. */
 #define HAVE_PCM_32BIT_PATH
 
+/* PodBox: in the WPS the wheel button switches the wheel between volume and
+ * seeking (apps/gui/wps.c). Wheel events carry the time since the previous
+ * detent in ms as button data, for acceleration. */
+#define HAVE_WHEEL_SEEK
+
 #define CONFIG_BATTERY_MEASURE PERCENTAGE_MEASURE
 
 #define NO_LOW_BATTERY_SHUTDOWN

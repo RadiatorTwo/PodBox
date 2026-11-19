@@ -21,7 +21,10 @@
 #define __ANDROID_CODEC_H
 
 #define AUDIOHW_CAPS    (MONO_VOL_CAP)
-AUDIOHW_SETTING(VOLUME,      "dB",   0,  1, -99,   0,   0)
+/* PodBox: volume in levels 0..30 instead of dB (0 = muted, 1 = quietest
+ * Android step, 30 = full, evenly spaced in dB in between, see RockboxPCM;
+ * RockboxPCM.STEPS must match) */
+AUDIOHW_SETTING(VOLUME,      "",     0,  1,   0,  30,  10)
 
 /* Bass and treble tone controls */
 #ifdef AUDIOHW_HAVE_BASS

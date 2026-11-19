@@ -68,9 +68,10 @@ static const struct button_mapping button_context_wps[]  = {
     { ACTION_WPS_VOLDOWN,       BUTTON_VOL_DOWN,                BUTTON_NONE },
     { ACTION_WPS_VOLDOWN,       BUTTON_VOL_DOWN|BUTTON_REPEAT,  BUTTON_NONE },
 
-    /* wheel button: short = main menu, long = context */
-    { ACTION_WPS_MENU,          BUTTON_DPAD_CENTER|BUTTON_REL,    BUTTON_DPAD_CENTER },
-    { ACTION_WPS_CONTEXT,       BUTTON_DPAD_CENTER|BUTTON_REPEAT, BUTTON_DPAD_CENTER },
+    /* wheel button: short = wheel volume <-> seek (like an iPod),
+     * long = main menu (the context menu is on the bottom key) */
+    { ACTION_WPS_WHEELMODE,     BUTTON_DPAD_CENTER|BUTTON_REL,    BUTTON_DPAD_CENTER },
+    { ACTION_WPS_MENU,          BUTTON_DPAD_CENTER|BUTTON_REPEAT, BUTTON_DPAD_CENTER },
 
     /* top: short = browser, long = previous track */
     { ACTION_WPS_BROWSE,        BUTTON_BACK|BUTTON_REL,      BUTTON_BACK },
