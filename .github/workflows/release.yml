@@ -62,6 +62,7 @@ jobs:
           bash podbox/build.sh zip || { tail -50 "$PODBOX_BUILD"/*.log; exit 1; }
           NAME=podbox-${{ github.ref_type == 'tag' && github.ref_name || github.sha }}.apk
           mv podbox.apk "$NAME"
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$NAME" | head -1
           echo "APK=$NAME" >> "$GITHUB_ENV"
 
       - name: Upload artifact
