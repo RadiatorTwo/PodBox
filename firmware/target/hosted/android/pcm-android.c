@@ -465,7 +465,7 @@ static void sink_dma_init(void)
     jmethodID constructor = e->GetMethodID(env_ptr, RockboxPCM_class, "<init>", "()V");
     jobject obj = e->NewObject(env_ptr, RockboxPCM_class, constructor);
     RockboxPCM_instance = e->NewGlobalRef(env_ptr, obj);
-    set_volume_method = e->GetMethodID(env_ptr, RockboxPCM_class, "set_volume", "(I)V");
+    set_volume_method = e->GetMethodID(env_ptr, RockboxPCM_class, "set_volume", "(I)I");
     play_state_method = e->GetMethodID(env_ptr, RockboxPCM_class, "play_state", "(Z)V");
 
     have_aaudio = load_aaudio();
@@ -479,9 +479,9 @@ static void sink_dma_postinit(void)
 {
 }
 
-void pcm_set_mixer_volume(int volume)
+int pcm_set_mixer_volume(int volume)
 {
-    (*env_ptr)->CallVoidMethod(env_ptr, RockboxPCM_instance, set_volume_method, volume);
+    return (*env_ptr)->CallIntMethod(env_ptr, RockboxPCM_instance, set_volume_method, volume);
 }
 
 /*

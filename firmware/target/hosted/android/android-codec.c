@@ -22,10 +22,17 @@
 #include "config.h"
 #include "audiohw.h"
 #include "pcm-android.h"
+#include "sound.h"
 
 void audiohw_set_volume(int volume)
 {
-    pcm_set_mixer_volume(volume);
+    /* PodBox: at startup Android keeps its own volume and returns it
+     * (RockboxPCM.set_volume), Rockbox takes it over. Through
+     * sound_set_volume() so global_status.volume and the prescaler both
+     * follow; Java is synced by then, so this recurses only once. */
+    int applied = pcm_set_mixer_volume(volume);
+    if (applied != volume)
+        sound_set_volume(applied / 10);
 }
 
 void audiohw_close(void)

@@ -39,9 +39,7 @@ public class RockboxPCM
 
     private int maxstreamvolume;
     private int setstreamvolume = -1;
-    /* PodBox: Android's volume wins at startup. Until Rockbox has taken over
-     * the volume we posted, its set_volume() calls come from its own stored
-     * (or default 0 dB!) value and must not touch the Android volume. */
+    /* PodBox: Android's volume wins at startup, see set_volume() */
     private int postedVolume = Integer.MIN_VALUE;
     private boolean volumeSynced = false;
 
@@ -199,21 +197,32 @@ public class RockboxPCM
     /* fine attenuation applied by the native output, 1.0 = untouched */
     private native void nativeSetGain(float gain);
 
-    private void set_volume(int volume)
+    /* called from audiohw_set_volume(), returns the volume now in effect.
+     * Rockbox 'volume' is the level (0..STEPS) times 10. */
+    private int set_volume(int volume)
     {
         Logger.d("java:set_volume("+volume+")");
         if (!volumeSynced)
         {
+            /* The first call comes from Rockbox's stored (or default) value.
+             * Android's volume wins: hand it back, Rockbox takes it over.
+             * Waiting for SYS_VOLUME_CHANGED instead was not reliable, that
+             * event can get lost during boot and then every later volume
+             * change was ignored. */
+            volumeSynced = true;
             if (Math.round(volume / 10.0f) != postedVolume)
             {
-                Logger.i("PodBox: ignoring startup volume " + volume / 10.0f
-                         + ", Android has " + postedVolume);
-                return;
+                Logger.i("PodBox: startup volume " + volume / 10.0f
+                         + " replaced by Android's " + postedVolume);
+                return postedVolume * 10;
             }
-            volumeSynced = true;
         }
-        /* Rockbox 'volume' is the level (0..STEPS) times 10 */
-        int level = Math.round(volume / 10.0f);
+        apply_volume(Math.round(volume / 10.0f));
+        return volume;
+    }
+
+    private void apply_volume(int level)
+    {
         float[] db = getStreamDb();
         if (db == null)
         {
