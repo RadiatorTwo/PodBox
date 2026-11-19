@@ -422,7 +422,7 @@ ein vorübergehendes Spitzenwert-Log in `fill()` von `pcm-android.c` (nicht comm
 - Installieren: `adb install -r podbox.apk`
 - Git: `core.eol=lf` ist repo-lokal Pflicht. Remotes: `origin` = GitHub, `upstream` = Rockbox
 
-Details stehen in `podbox/README.md`.
+Details stehen in `README.md` im Repo-Root.
 
 Testen per adb (Hilfsmuster): Rad runter = `KEYCODE_VOLUME_UP`, hoch = `VOLUME_DOWN`,
 OK = `CAMERA`, Zurück = `MEDIA_PREVIOUS`; Screenshot mit `adb exec-out screencap -p`.

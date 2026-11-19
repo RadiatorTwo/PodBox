@@ -3,10 +3,12 @@
 #
 #   .\setup.ps1                      nur einstellen (PodBox muss installiert sein)
 #   .\setup.ps1 -Apk ..\podbox.apk   vorher die APK installieren
+#   .\setup.ps1 -Release             vorher die APK des neuesten GitHub-Releases installieren
 #   .\setup.ps1 -Debloat             danach zusätzlich debloat.ps1 ausführen
 
 param(
     [string]$Apk,
+    [switch]$Release,
     [switch]$Debloat
 )
 
@@ -19,6 +21,16 @@ if (-not (Get-Command adb -ErrorAction SilentlyContinue)) { throw 'adb nicht im 
 if (-not ((adb devices) -match "`tdevice$")) { throw 'Kein Gerät per adb verbunden.' }
 
 function Write-Step([string]$Name, $Out) { '{0,-40} {1}' -f $Name, (($Out | Out-String).Trim() -replace '\s+', ' ') }
+
+if ($Release) {
+    if ($Apk) { throw '-Apk und -Release nicht zusammen.' }
+    $rel   = Invoke-RestMethod 'https://api.github.com/repos/RadiatorTwo/PodBox/releases/latest'
+    $asset = $rel.assets | Where-Object name -like '*.apk' | Select-Object -First 1
+    if (-not $asset) { throw "Release $($rel.tag_name) hat keine APK." }
+    $Apk = Join-Path ([IO.Path]::GetTempPath()) $asset.name
+    Invoke-WebRequest $asset.browser_download_url -OutFile $Apk
+    Write-Step 'Release geladen' "$($rel.tag_name) ($($asset.name))"
+}
 
 if ($Apk) {
     if (-not (Test-Path $Apk)) { throw "APK nicht gefunden: $Apk" }
