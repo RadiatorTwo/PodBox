@@ -133,8 +133,8 @@ sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-21" "build-tools;30.0
 Bauen (aus Windows Git-Bash):
 
 ```bash
-MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/f/!Code2/PodBox/podbox/build.sh"      # Code
-MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/f/!Code2/PodBox/podbox/build.sh" zip  # + Themes/Plugins
+MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/podbox/build.sh"      # Code
+MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/podbox/build.sh" zip  # + Themes/Plugins
 adb install -r podbox.apk
 ```
 

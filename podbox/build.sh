@@ -1,6 +1,6 @@
 #!/bin/bash
 # PodBox build: runs inside WSL (archlinux).
-# Usage (from Windows Git-Bash): MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/f/!Code2/PodBox/podbox/build.sh" [zip]
+# Usage (from Windows Git-Bash): MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/podbox/build.sh" [zip]
 # Native part: tools/configure + make. APK: Gradle (android/build.gradle).
 set -e
 export ANDROID_SDK_PATH=${ANDROID_SDK_PATH:-~/android/sdk}

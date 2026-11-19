@@ -418,7 +418,7 @@ ein vorübergehendes Spitzenwert-Log in `fill()` von `pcm-android.c` (nicht comm
 - Gradle per Wrapper (`android/gradlew`, Distribution in `~/.gradle`); eine lose Gradle-8.9-
   Installation liegt zusätzlich unter `~/podbox/tools/gradle-8.9` (nur zum Erzeugen des Wrappers)
 - Build-Verzeichnis `~/podbox/build-arm64`, Keystore `~/podbox/podbox.keystore`
-- Bauen: `MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/f/!Code2/PodBox/podbox/build.sh" [zip]`
+- Bauen: `MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/podbox/build.sh" [zip]`
 - Installieren: `adb install -r podbox.apk`
 - Git: `core.eol=lf` ist repo-lokal Pflicht. Remotes: `origin` = GitHub, `upstream` = Rockbox
 
