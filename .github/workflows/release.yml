@@ -46,19 +46,19 @@ jobs:
           fi
           echo "$PODBOX_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/podbox.keystore"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: ~/.gradle
           key: gradle-${{ hashFiles('android/build.gradle', 'android/gradle/wrapper/gradle-wrapper.properties') }}
 
       - name: Build APK
         env:
-          ANDROID_SDK_PATH: ${{ env.ANDROID_HOME }}
-          ANDROID_NDK_PATH: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
           PODBOX_BUILD: ${{ runner.temp }}/build-arm64
           PODBOX_KEYSTORE: ${{ runner.temp }}/podbox.keystore
           PODBOX_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
+          # ANDROID_HOME is a runner shell variable, not visible in the env context
+          export ANDROID_SDK_PATH="$ANDROID_HOME" ANDROID_NDK_PATH="$ANDROID_HOME/ndk/$NDK_VERSION"
           bash podbox/build.sh zip || { tail -50 "$PODBOX_BUILD"/*.log; exit 1; }
           NAME=podbox-${{ github.ref_type == 'tag' && github.ref_name || github.sha }}.apk
           mv podbox.apk "$NAME"
@@ -66,7 +66,7 @@ jobs:
 
       - name: Upload artifact
         if: github.ref_type != 'tag'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ env.APK }}
           path: ${{ env.APK }}
