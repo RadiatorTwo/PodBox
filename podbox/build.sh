@@ -3,7 +3,7 @@
 # Usage (from Windows Git-Bash): MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/f/!Code2/PodBox/podbox/build.sh" [zip]
 # Native part: tools/configure + make. APK: Gradle (android/build.gradle).
 set -e
-export ANDROID_SDK_PATH=~/android/sdk
+export ANDROID_SDK_PATH=${ANDROID_SDK_PATH:-~/android/sdk}
 export ANDROID_HOME=$ANDROID_SDK_PATH
 # NDK r27 (clang), 64 bit (arm64-v8a) by default.
 #   32 bit:          ANDROID_ABI=armeabi PODBOX_BUILD=~/podbox/build-clang
@@ -15,7 +15,7 @@ SRC="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$SRC/podbox.apk"
 BUILD=${PODBOX_BUILD:-~/podbox/build-arm64}
 BT=$ANDROID_SDK_PATH/build-tools/30.0.3
-KS=~/podbox/podbox.keystore
+KS=${PODBOX_KEYSTORE:-~/podbox/podbox.keystore}
 
 mkdir -p "$BUILD" && cd "$BUILD"
 # package id, see tools/configure (paths) and android/build.gradle
@@ -46,7 +46,7 @@ if [ "$PODBOX_APK" = "make" ]; then
 else
     # copy librockbox.so, codecs and libmisc.so (= rockbox.zip) to libs/<abi>
     make libs > libs.log 2>&1 || { tail -30 libs.log; exit 1; }
-    VERSION=$(git -C "$SRC" -c safe.directory='*' rev-parse --short HEAD 2>/dev/null || echo 1.0)
+    VERSION=${PODBOX_VERSION:-$(git -C "$SRC" -c safe.directory='*' rev-parse --short HEAD 2>/dev/null || echo 1.0)}
     "$SRC/android/gradlew" -p "$SRC/android" -q --project-cache-dir "$BUILD/gradle-cache" \
         -Ppodbox.build="$BUILD" -Ppodbox.keystore="$KS" -Ppodbox.version="$VERSION" -Ppodbox.appid="$PODBOX_APP_ID" \
         assembleDebug > gradle.log 2>&1 || { tail -40 gradle.log; exit 1; }

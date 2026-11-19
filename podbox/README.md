@@ -146,6 +146,13 @@ Die APK baut Gradle (`android/gradlew`, lädt beim ersten Lauf Gradle 8.9 und da
 Gradle Plugin). Gradle-Ausgaben und -Cache liegen im Build-Verzeichnis (`gradle/`,
 `gradle-cache/`), nicht im Quellbaum. Signiert wird mit `~/podbox/podbox.keystore`
 (Alias `podbox`), den `build.sh` beim ersten Lauf anlegt.
+Releases baut GitHub Actions (`.github/workflows/release.yml`): Ein Tag `v*` pushen, dann baut
+der Workflow `build.sh zip` auf Ubuntu und hängt `podbox-<tag>.apk` an ein neues Release.
+Manuell gestartet (`workflow_dispatch`) gibt es die APK nur als Workflow-Artefakt. Damit die APK
+über die installierte App passt, braucht der Workflow denselben Schlüssel als Secret
+`PODBOX_KEYSTORE` (base64 von `~/podbox/podbox.keystore`):
+`wsl -d archlinux -e bash -c 'base64 -w0 ~/podbox/podbox.keystore' | gh secret set PODBOX_KEYSTORE`.
+`build.sh` nimmt dafür `ANDROID_SDK_PATH`, `PODBOX_KEYSTORE` und `PODBOX_VERSION` aus der Umgebung.
 Mit `PODBOX_APK=make` läuft noch der alte Weg über `android.make`; dann signiert das Skript
 mit `apksigner` neu, weil Android 12 die alte MD5/SHA1-Signatur ablehnt.
 
