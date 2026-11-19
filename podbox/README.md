@@ -153,6 +153,10 @@ Manuell gestartet (`workflow_dispatch`) gibt es die APK nur als Workflow-Artefak
 `PODBOX_KEYSTORE` (base64 von `~/podbox/podbox.keystore`):
 `wsl -d archlinux -e bash -c 'base64 -w0 ~/podbox/podbox.keystore' | gh secret set PODBOX_KEYSTORE`.
 `build.sh` nimmt dafür `ANDROID_SDK_PATH`, `PODBOX_KEYSTORE` und `PODBOX_VERSION` aus der Umgebung.
+Versionsname ist der Tag ohne `v` (lokal `git describe`, z. B. `1.0.0-3-gabc1234`), der
+`versionCode` folgt daraus (`x.y.z` → `x*10000 + y*100 + z`, ohne Tag 1). Lokale Builds nach
+einem Release tragen also denselben Code wie das Release und lassen sich mit `adb install -r`
+darüber installieren.
 Mit `PODBOX_APK=make` läuft noch der alte Weg über `android.make`; dann signiert das Skript
 mit `apksigner` neu, weil Android 12 die alte MD5/SHA1-Signatur ablehnt.
 

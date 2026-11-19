@@ -6,6 +6,11 @@ plugins {
 }
 
 def rbBuild = file(findProperty('podbox.build') ?: "${System.getProperty('user.home')}/podbox/build-arm64")
+// versionName from podbox/build.sh (tag or git describe), versionCode = x.y.z -> x*10000 + y*100 + z
+def podboxVersion = findProperty('podbox.version') ?: '1.0'
+def semver = podboxVersion =~ /^(\d+)\.(\d+)\.(\d+)/
+def podboxVersionCode = semver.find() ?
+        semver.group(1).toInteger() * 10000 + semver.group(2).toInteger() * 100 + semver.group(3).toInteger() : 1
 def keystore = file(findProperty('podbox.keystore') ?: "${System.getProperty('user.home')}/podbox/podbox.keystore")
 
 // Gradle output goes next to the native build, not into the source tree
@@ -22,8 +27,8 @@ android {
         // API 21 is what the native part is built for (tools/configure)
         minSdk 21
         targetSdk 34
-        versionCode 2
-        versionName(findProperty('podbox.version') ?: '1.0')
+        versionCode podboxVersionCode
+        versionName podboxVersion
     }
 
     sourceSets {

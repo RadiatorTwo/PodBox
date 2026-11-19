@@ -46,7 +46,10 @@ if [ "$PODBOX_APK" = "make" ]; then
 else
     # copy librockbox.so, codecs and libmisc.so (= rockbox.zip) to libs/<abi>
     make libs > libs.log 2>&1 || { tail -30 libs.log; exit 1; }
-    VERSION=${PODBOX_VERSION:-$(git -C "$SRC" -c safe.directory='*' rev-parse --short HEAD 2>/dev/null || echo 1.0)}
+    # version name: release tag (CI) or "git describe" (e.g. 1.0.0-3-gabc1234), without leading v;
+    # build.gradle derives versionCode from the leading x.y.z
+    VERSION=${PODBOX_VERSION:-$(git -C "$SRC" -c safe.directory='*' describe --tags --always 2>/dev/null || echo 1.0)}
+    VERSION=${VERSION#v}
     "$SRC/android/gradlew" -p "$SRC/android" -q --project-cache-dir "$BUILD/gradle-cache" \
         -Ppodbox.build="$BUILD" -Ppodbox.keystore="$KS" -Ppodbox.version="$VERSION" -Ppodbox.appid="$PODBOX_APP_ID" \
         assembleDebug > gradle.log 2>&1 || { tail -40 gradle.log; exit 1; }
