@@ -120,14 +120,17 @@ Gebaut wird in WSL2 (Arch Linux), weil das Rockbox-Buildsystem nur unter Linux/U
 Einmalig einrichten:
 
 ```bash
-pacman -S --needed base-devel wget unzip zip jdk17-openjdk python
+pacman -Syu --needed base-devel wget unzip zip jdk17-openjdk python freetype2 git perl
+sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen   # sonst Perl-Locale-Warnungen
 mkdir -p ~/android && cd ~/android
 wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
 mkdir -p sdk/cmdline-tools && unzip -q commandlinetools-linux-11076708_latest.zip -d sdk/cmdline-tools
 mv sdk/cmdline-tools/cmdline-tools sdk/cmdline-tools/latest
 yes | sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-21" "build-tools;30.0.3" "platform-tools" \
-    "ndk;27.2.12479018"
+sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-21" "platforms;android-34" "build-tools;30.0.3" \
+    "build-tools;34.0.0" "platform-tools" "ndk;27.2.12479018"
+# Signaturschlüssel aus der Sicherung, nie neu erzeugen (sonst passt die APK nicht über die App)
+mkdir -p ~/podbox && cp /mnt/c/Users/Radi/podbox/podbox.keystore ~/podbox/
 ```
 
 Bauen (aus Windows Git-Bash):
