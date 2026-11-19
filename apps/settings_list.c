@@ -349,7 +349,7 @@ static const char graphic_numeric[] = "graphic,numeric";
 #define PODBOX_THEME
 #endif
 #ifdef PODBOX_THEME
-/* PodBox: own theme (wps/podbox.480x640x16.*, podbox/theme) */
+/* PodBox: own theme (wps/podbox.480x640x16.*, theme) */
 #define DEFAULT_WPSNAME  "podbox"
 #define DEFAULT_SBSNAME  "podbox"
 #else
@@ -381,7 +381,7 @@ static const char graphic_numeric[] = "graphic,numeric";
 #elif LCD_HEIGHT <= 400
   #define DEFAULT_FONT_HEIGHT 16
 #elif defined(PODBOX_THEME)
-  /* PodBox: anti-aliased Inter, made by podbox/mkfonts.sh */
+  /* PodBox: anti-aliased Inter, made by theme/mkfonts.sh */
   #define DEFAULT_FONT_HEIGHT 32
   #define DEFAULT_FONTNAME "30-Inter"
 #elif LCD_HEIGHT <= 480 && LCD_WIDTH < 800
@@ -441,7 +441,7 @@ static const char graphic_numeric[] = "graphic,numeric";
 #endif /* HAVE_REMOTE_LCD */
 
 #ifdef PODBOX_THEME
-/* PodBox: colours of podbox/theme/mkassets.py (exact RGB565 values) */
+/* PodBox: colours of theme/mkassets.py (exact RGB565 values) */
 #define DEFAULT_THEME_FOREGROUND LCD_RGBPACK(0xe8, 0xec, 0xf0)
 #define DEFAULT_THEME_BACKGROUND LCD_RGBPACK(0x18, 0x1c, 0x20)
 #define DEFAULT_THEME_SELECTOR_START LCD_RGBPACK(0x2a, 0x2e, 0x33)

@@ -1,10 +1,10 @@
 #!/bin/bash
-# PodBox: converts the Inter TTFs in podbox/fonts into anti-aliased Rockbox
+# PodBox: converts the Inter TTFs in theme/fonts into anti-aliased Rockbox
 # fonts (4 bit). Called by build.sh; the .fnt files are not committed.
-# tools/buildzip.pl copies podbox/fonts/*.fnt into /.rockbox/fonts.
+# tools/buildzip.pl copies theme/fonts/*.fnt into /.rockbox/fonts.
 set -e
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
-F="$SRC/podbox/fonts"
+F="$SRC/theme/fonts"
 CONV=${PODBOX_BUILD:-~/podbox/build-arm64}/convttf
 
 if [ ! -x "$CONV" ] || [ "$SRC/tools/convttf.c" -nt "$CONV" ]; then

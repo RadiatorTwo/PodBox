@@ -1,4 +1,4 @@
-// PodBox APK build (Android Gradle Plugin). Called by podbox/build.sh:
+// PodBox APK build (Android Gradle Plugin). Called by scripts/build.sh:
 //   ./gradlew -Ppodbox.build=<rockbox build dir> assembleDebug
 // Keeps the old Rockbox source layout (src/, res/, AndroidManifest.xml).
 plugins {
@@ -6,7 +6,7 @@ plugins {
 }
 
 def rbBuild = file(findProperty('podbox.build') ?: "${System.getProperty('user.home')}/podbox/build-arm64")
-// versionName from podbox/build.sh (tag or git describe), versionCode = x.y.z -> x*10000 + y*100 + z
+// versionName from scripts/build.sh (tag or git describe), versionCode = x.y.z -> x*10000 + y*100 + z
 def podboxVersion = findProperty('podbox.version') ?: '1.0'
 def semver = podboxVersion =~ /^(\d+)\.(\d+)\.(\d+)/
 def podboxVersionCode = semver.find() ?

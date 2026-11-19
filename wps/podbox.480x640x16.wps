@@ -1,6 +1,6 @@
 # PodBox - while playing screen, 480x640 (Surfans F20 Pro+)
 # Dark, flat cards with shadows, Inter. Cards and shadows are baked into
-# the backdrop (podbox/theme/mkassets.py, which holds the same layout
+# the backdrop (theme/mkassets.py, which holds the same layout
 # numbers). No %s (scrolling): long texts are cut off.
 %wd
 %X(wps-backdrop.bmp)

@@ -6,10 +6,10 @@ Generates the bitmaps of the "podbox" theme:
   icons/podbox_icons.32x32.bmp       list icon strip (32 bit, alpha)
 
 Requirements: Python 3 with Pillow and numpy, the Inter TTFs in
-podbox/fonts and the Material Symbols Sharp font (downloaded to
-podbox/theme/cache on first run, Apache 2.0).
+theme/fonts and the Material Symbols Sharp font (downloaded to
+theme/cache on first run, Apache 2.0).
 
-Colour rules (see podbox/STATUS.md, "Design"):
+Colour rules (see docs/STATUS.md, "Design"):
 - Every flat colour is an exact RGB565 value, so code (line.c, %Vs(fill))
   can fill the same colour pixel-exact next to bitmap areas.
 - Gradients and shadows are dithered here (8x8 Bayer) to RGB565 and
@@ -27,11 +27,11 @@ import urllib.request
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT = os.path.join(ROOT, "wps", "podbox")
 ICONS = os.path.join(ROOT, "icons")
-FONTS = os.path.join(ROOT, "podbox", "fonts")
-CACHE = os.path.join(ROOT, "podbox", "theme", "cache")
+FONTS = os.path.join(ROOT, "theme", "fonts")
+CACHE = os.path.join(ROOT, "theme", "cache")
 MSYM_URL = ("https://raw.githubusercontent.com/google/material-design-icons/"
             "master/variablefont/MaterialSymbolsSharp%5BFILL,GRAD,opsz,wght%5D")
 

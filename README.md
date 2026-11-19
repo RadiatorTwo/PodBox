@@ -17,7 +17,7 @@ iPod: scroll wheel, wheel button and the buttons on the right side, also with th
 Connect the device over USB (USB debugging enabled), then run in PowerShell from the repo:
 
 ```powershell
-.\podbox\setup.ps1 -Release
+.\scripts\setup.ps1 -Release
 ```
 
 The script downloads the APK of the latest [release](https://github.com/RadiatorTwo/PodBox/releases),
@@ -35,9 +35,9 @@ factory reset (which reverts all of these settings).
 Other invocations:
 
 ```powershell
-.\podbox\setup.ps1                     # settings only, PodBox is already installed
-.\podbox\setup.ps1 -Apk .\podbox.apk   # install your own APK (local build)
-.\podbox\setup.ps1 -Release -Debloat   # also remove unneeded system apps (debloat.ps1)
+.\scripts\setup.ps1                     # settings only, PodBox is already installed
+.\scripts\setup.ps1 -Apk .\podbox.apk   # install your own APK (local build)
+.\scripts\setup.ps1 -Release -Debloat   # also remove unneeded system apps (debloat.ps1)
 ```
 
 `debloat.ps1 -Restore` brings the removed system apps back. The main menu entry "Other Apps"
@@ -123,15 +123,14 @@ CRLF and `tools/configure` fails.
 Build and install (from Windows Git Bash):
 
 ```bash
-MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/podbox/build.sh"      # code
-MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/podbox/build.sh" zip  # + themes/plugins
-adb install -r podbox.apk    # or: .\podbox\setup.ps1 -Apk .\podbox.apk
+MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/scripts/build.sh"      # code
+MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/scripts/build.sh" zip  # + themes/plugins
+adb install -r podbox.apk    # or: .\scripts\setup.ps1 -Apk .\podbox.apk
 ```
 
 After changing settings or texts, build with `build.sh zip`.
 
-- Target is arm64-v8a with NDK r27 (clang). `ANDROID_ABI=armeabi` builds 32 bit; other
-  variants are listed at the top of `build.sh`.
+- Target is arm64-v8a with NDK r27 (clang).
 - The build directory is `~/podbox/build-arm64` inside WSL, the APK ends up in the repo root.
 - Gradle builds the APK (`android/gradlew`, Gradle 8.9, AGP 8.7). Output and cache live in the
   build directory, not in the source tree.
@@ -161,9 +160,21 @@ The workflow signs with the same key, stored as the repo secret `PODBOX_KEYSTORE
 wsl -d archlinux -e bash -c 'base64 -w0 ~/podbox/podbox.keystore' | gh secret set PODBOX_KEYSTORE
 ```
 
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `android/` | Android app (Java, Gradle): activity, service, MediaSession, volume |
+| `apps/`, `firmware/`, `lib/` | player core in C: UI, playback, database, codecs, DSP, Android target |
+| `tools/` | build system (`configure`, makefiles) and host tools used during the build |
+| `wps/`, `icons/`, `backdrops/`, `fonts/` | theme files packed into the APK |
+| `theme/` | sources of the PodBox theme: Inter fonts, `mkfonts.sh`, `mkassets.py` |
+| `scripts/` | `build.sh`, `setup.ps1`, `debloat.ps1` |
+| `docs/` | project status (`STATUS.md`) and documents packed into the APK |
+
 ## Development
 
-Project status, fixed issues, measurements and open items are in [STATUS.md](podbox/STATUS.md)
+Project status, fixed issues, measurements and open items are in [STATUS.md](docs/STATUS.md)
 (German).
 
 ## License

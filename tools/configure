@@ -3338,7 +3338,7 @@ fi
     target="ANDROID"
     app_type="android"
     app_set_lcd_size
-    # PodBox: package id of the app (android/build.gradle, podbox/build.sh).
+    # PodBox: package id of the app (android/build.gradle, scripts/build.sh).
     # com.blueshark.player is on the firmware's allow-list for the direct
     # (bit-perfect) headphone output of the Surfans F20 Pro+.
     android_pkg="${PODBOX_APP_ID:-com.blueshark.player}"

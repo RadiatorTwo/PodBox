@@ -1,6 +1,6 @@
 # PodBox - menus and lists, 480x640 (Surfans F20 Pro+)
 # Status bar, list title, list area and a mini player at the bottom.
-# The mini player card is part of the backdrop (podbox/theme/mkassets.py).
+# The mini player card is part of the backdrop (theme/mkassets.py).
 # The selected list line is drawn as a card by apps/gui/line.c
 # (selector type "bar (color)", colours from the theme .cfg).
 %X(sbs-backdrop.bmp)

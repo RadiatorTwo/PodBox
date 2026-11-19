@@ -54,7 +54,7 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
 1. **StackOverflowError bei JNI-Aufrufen (ART):** Die Rockbox-Thread-Stacks werden jetzt
    aus dem 64-MB-Java-Thread-Stack geschnitten (`firmware/asm/thread-unix.c`).
 2. **Fehlende `rand`/`srand`:** Android-Target von API 19 auf 21 angehoben (`tools/configure`).
-3. **Signatur:** Android 12 lehnt MD5/SHA1-Signaturen ab, deshalb signiert `podbox/build.sh`
+3. **Signatur:** Android 12 lehnt MD5/SHA1-Signaturen ab, deshalb signiert `scripts/build.sh`
    mit `apksigner` neu.
 4. **Ressourcen nach Update nicht neu entpackt:** Der Port hat Zeitstempel verglichen, und die
    Libs aus der APK tragen immer 1980. Jetzt wird `lastUpdateTime` verglichen (`RockboxService.java`).
@@ -306,13 +306,13 @@ Akzent sehr helles Grau, Schrift Inter, Symbole Material Symbols Sharp. Entwurf:
 https://claude.ai/artifact/SenArV595xHBfNx5s19Xxk. Ist Standard (`settings_list.c`,
 `PODBOX_THEME`); `config.cfg` auf dem Gerät enthält keine Theme-Zeilen, also greift es direkt.
 
-- **Schriften:** `podbox/mkfonts.sh` (von `build.sh zip` aufgerufen) baut `convttf` und macht aus
-  `podbox/fonts/Inter-*.ttf` kantengeglättete `.fnt` (15–30 px, nicht eingecheckt).
+- **Schriften:** `theme/mkfonts.sh` (von `build.sh zip` aufgerufen) baut `convttf` und macht aus
+  `theme/fonts/Inter-*.ttf` kantengeglättete `.fnt` (15–30 px, nicht eingecheckt).
   `buildzip.pl` und `wpsbuild.pl` kopieren sie. UI-Schrift `30-Inter` (32 px hoch). Der User wollte zweimal größeren Text (20 und 24 px waren zu klein).
-- **Grafiken:** `python podbox/theme/mkassets.py` (Windows-Python mit Pillow/numpy) erzeugt
+- **Grafiken:** `python theme/mkassets.py` (Windows-Python mit Pillow/numpy) erzeugt
   `wps/podbox/*.bmp` und `icons/podbox_icons.32x32.bmp` (eingecheckt). Die Layout-Zahlen stehen
   dort und in `wps/podbox.480x640x16.{wps,sbs}`, beide zusammen ändern. Material Symbols lädt
-  das Skript beim ersten Lauf nach `podbox/theme/cache` (nicht eingecheckt).
+  das Skript beim ersten Lauf nach `theme/cache` (nicht eingecheckt).
 - **Farbregel:** Alle Flächenfarben sind exakte RGB565-Werte; Verläufe/Schatten dithert das
   Skript selbst. `backdrop.c` dithert auf Android nicht mehr, sonst wären flache Flächen
   zweifarbig gemustert und passten nicht zu Flächen, die der Code füllt.
@@ -413,14 +413,15 @@ ein vorübergehendes Spitzenwert-Log in `fill()` von `pcm-android.c` (nicht comm
 
 - WSL2 `archlinux` (Standardshell fish, deshalb immer `wsl -d archlinux -e bash ...`)
 - NDK r27 (clang 18) unter `~/android/sdk/ndk/27.2.12479018`, arm64-v8a; SDK unter
-  `~/android/sdk`, build-tools 30.0.3 + 34.0.0, platforms 21 + 34. 32 Bit und NDK r16b gehen
-  weiter, siehe `build.sh`
+  `~/android/sdk`, build-tools 30.0.3 + 34.0.0, platforms 21 + 34. Nur noch arm64-v8a: 32-Bit-ARM-Assembler,
+  NDK r16b und der alte `android.make`-APK-Weg sind entfernt (Aufräumen 19.11.)
 - Gradle per Wrapper (`android/gradlew`, Distribution in `~/.gradle`); eine lose Gradle-8.9-
   Installation liegt zusätzlich unter `~/podbox/tools/gradle-8.9` (nur zum Erzeugen des Wrappers)
 - Build-Verzeichnis `~/podbox/build-arm64`, Keystore `~/podbox/podbox.keystore`
-- Bauen: `MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/podbox/build.sh" [zip]`
+- Bauen: `MSYS_NO_PATHCONV=1 wsl -d archlinux -e bash "/mnt/c/!Code2/PodBox/scripts/build.sh" [zip]`
 - Installieren: `adb install -r podbox.apk`
-- Git: `core.eol=lf` ist repo-lokal Pflicht. Remotes: `origin` = GitHub, `upstream` = Rockbox
+- Git: `core.eol=lf` ist repo-lokal Pflicht. Remote: `origin` = GitHub. Die Historie
+  enthält keine Rockbox-Commits mehr, nur den reduzierten Basisstand (Commit "PodBox base")
 
 Details stehen in `README.md` im Repo-Root.
 

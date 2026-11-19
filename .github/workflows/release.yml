@@ -1,4 +1,4 @@
-# PodBox: builds the APK (podbox/build.sh zip) and publishes it as a GitHub release.
+# PodBox: builds the APK (scripts/build.sh zip) and publishes it as a GitHub release.
 #   Tag push v*        -> build + release with podbox-<tag>.apk
 #   Manual run         -> build only, APK as workflow artifact
 # Secret PODBOX_KEYSTORE: base64 of ~/podbox/podbox.keystore (alias podbox, password android).
@@ -59,7 +59,7 @@ jobs:
         run: |
           # ANDROID_HOME is a runner shell variable, not visible in the env context
           export ANDROID_SDK_PATH="$ANDROID_HOME" ANDROID_NDK_PATH="$ANDROID_HOME/ndk/$NDK_VERSION"
-          bash podbox/build.sh zip || { tail -50 "$PODBOX_BUILD"/*.log; exit 1; }
+          bash scripts/build.sh zip || { tail -50 "$PODBOX_BUILD"/*.log; exit 1; }
           NAME=podbox-${{ github.ref_type == 'tag' && github.ref_name || github.sha }}.apk
           mv podbox.apk "$NAME"
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$NAME" | head -1
