@@ -174,6 +174,12 @@ auch direkt:
 adb shell appops set --uid com.blueshark.player MANAGE_EXTERNAL_STORAGE allow
 ```
 
+Gerät einrichten (auch nach einem Werksreset): `podbox/setup.ps1 [-Apk podbox.apk] [-Debloat]`
+setzt per adb Dateizugriff, PodBox als Startbildschirm, keine Displaysperre, Tasten bei
+ausgeschaltetem Bildschirm und keine Akku-Optimierung für PodBox. Die Tasten bei Bildschirm aus
+hängen an der Herstellereigenschaft `persist.sys.hw.key=1` (schreibt `/sys/class/key/key/state`,
+nur als Schnellzugriff-Kachel in SystemUI, nicht im Einstellungsmenü); der Reset setzt sie auf 0.
+
 Die repo-lokale Git-Einstellung `core.eol=lf` ist nötig, sonst checkt Git unter Windows
 mit CRLF aus und `tools/configure` läuft nicht.
 
