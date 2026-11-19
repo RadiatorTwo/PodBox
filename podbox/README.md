@@ -30,9 +30,9 @@ ein System-Remap ist nicht nötig.
 |---|---|---|
 | Rad | hoch/runter | Lautstärke, im Seek-Modus Spulen (5 s pro Raste, schnell bis 30 s) |
 | Rad-Button | OK, lang: Kontextmenü | Rad umschalten Lautstärke ↔ Seek, lang: Hauptmenü |
-| oben | Zurück, lang: Hauptmenü | Browser, lang: Track zurück |
+| oben | Zurück, lang: Hauptmenü | Track zurück, lang: Browser |
 | Mitte | Play/Pause, lang (≥0,6 s): Stop | Play/Pause, lang: Stop |
-| unten | Kontextmenü, lang: Quickscreen | Kontextmenü, lang: Track vor |
+| unten | Kontextmenü, lang: Quickscreen | Track vor, lang: Kontextmenü |
 
 In den Einstellungen ändert das Rad den Wert.
 

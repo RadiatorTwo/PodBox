@@ -73,13 +73,13 @@ static const struct button_mapping button_context_wps[]  = {
     { ACTION_WPS_WHEELMODE,     BUTTON_DPAD_CENTER|BUTTON_REL,    BUTTON_DPAD_CENTER },
     { ACTION_WPS_MENU,          BUTTON_DPAD_CENTER|BUTTON_REPEAT, BUTTON_DPAD_CENTER },
 
-    /* top: short = browser, long = previous track */
-    { ACTION_WPS_BROWSE,        BUTTON_BACK|BUTTON_REL,      BUTTON_BACK },
-    { ACTION_WPS_SKIPPREV,      BUTTON_BACK|BUTTON_REPEAT,   BUTTON_BACK },
+    /* top: short = previous track, long = browser */
+    { ACTION_WPS_SKIPPREV,      BUTTON_BACK|BUTTON_REL,      BUTTON_BACK },
+    { ACTION_WPS_BROWSE,        BUTTON_BACK|BUTTON_REPEAT,   BUTTON_BACK },
 
-    /* bottom: short = context menu, long = next track */
-    { ACTION_WPS_CONTEXT,       BUTTON_MENU|BUTTON_REL,      BUTTON_MENU },
-    { ACTION_WPS_SKIPNEXT,      BUTTON_MENU|BUTTON_REPEAT,   BUTTON_MENU },
+    /* bottom: short = next track, long = context menu */
+    { ACTION_WPS_SKIPNEXT,      BUTTON_MENU|BUTTON_REL,      BUTTON_MENU },
+    { ACTION_WPS_CONTEXT,       BUTTON_MENU|BUTTON_REPEAT,   BUTTON_MENU },
 
     
     LAST_ITEM_IN_LIST

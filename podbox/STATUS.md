@@ -45,9 +45,9 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
 |---|---|---|---|---|
 | Rad im Uhrzeigersinn / dagegen | VOLUME_UP / VOLUME_DOWN | runter / hoch | Lautstärke oder Spulen (Seek-Modus) | Lautstärke |
 | Rad-Button | CAMERA | OK, lang: Kontext | Rad: Lautstärke ↔ Spulen, lang: Hauptmenü | – |
-| oben | MEDIA_PREVIOUS | Zurück, lang: Hauptmenü | Browser, lang: Track zurück | Track zurück |
+| oben | MEDIA_PREVIOUS | Zurück, lang: Hauptmenü | Track zurück, lang: Browser | Track zurück |
 | Mitte | MEDIA_PLAY_PAUSE | Play/Pause, lang: Stop | Play/Pause, lang: Stop | Play/Pause, lang: Stop |
-| unten | MEDIA_NEXT | Kontext, lang: Quickscreen | Kontext, lang: Track vor | Track vor |
+| unten | MEDIA_NEXT | Kontext, lang: Quickscreen | Track vor, lang: Kontext | Track vor |
 
 ## Behobene Probleme des alten Android-Ports
 
