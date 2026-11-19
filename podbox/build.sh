@@ -30,6 +30,7 @@ fi
 
 make -j"$(nproc)" > make.log 2>&1 || { grep -E "error|Error" make.log | head -30; exit 1; }
 if [ "$1" = "zip" ] || [ ! -f rockbox.zip ]; then
+    PODBOX_BUILD="$BUILD" bash "$SRC/podbox/mkfonts.sh"
     make zip > zip.log 2>&1 || { tail -20 zip.log; exit 1; }
 fi
 

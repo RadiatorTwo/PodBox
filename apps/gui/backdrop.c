@@ -33,8 +33,16 @@ bool backdrop_load(const char* filename, char *backdrop_buffer)
 
     /* load the image */
     bm.data = backdrop_buffer;
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+    /* PodBox: theme backdrops come pre-dithered to RGB565 (see
+     * podbox/theme/mkassets.py); dithering again would break flat colours
+     * that code fills next to them */
+    ret = read_bmp_file(filename, &bm, LCD_BACKDROP_BYTES,
+                        FORMAT_NATIVE, NULL);
+#else
     ret = read_bmp_file(filename, &bm, LCD_BACKDROP_BYTES,
                         FORMAT_NATIVE | FORMAT_DITHER, NULL);
+#endif
 
     return ((ret > 0)
             && (bm.width == LCD_WIDTH) && (bm.height == LCD_HEIGHT));

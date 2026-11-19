@@ -553,7 +553,11 @@ MENUITEM_FUNCTION(other_apps, 0, ID2P(LANG_PODBOX_OTHER_APPS),
 
 struct menu_item_ex root_menu_;
 static struct menu_callback_with_desc root_menu_desc = {
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+        item_callback, (unsigned char *)"PodBox", Icon_Rockbox };
+#else
         item_callback, ID2P(LANG_ROCKBOX_TITLE), Icon_Rockbox };
+#endif
 
 static struct menu_table menu_table[] = {
     /* Order here represents the default ordering */

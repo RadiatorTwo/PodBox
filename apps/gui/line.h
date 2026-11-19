@@ -45,6 +45,9 @@ enum line_styles {
     STYLE_GRADIENT   = 0x08,
     /* Modifier for the text color, which will be taken from line_desc.text_color */
     STYLE_COLORED    = 0x10,
+    /* PodBox: modifier for STYLE_COLORBAR, draws the bar as a raised card
+     * with a shadow (line_color) on the background colour */
+    STYLE_CARD       = 0x20,
     /* These are used internally */
     _STYLE_DECO_MASK = 0x0f,
     _STYLE_MODE_MASK = 0x7F,

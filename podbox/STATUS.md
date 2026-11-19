@@ -43,8 +43,8 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
 
 | Hardware | Keycode | Listen/Menüs | Wiedergabe-Bildschirm | Bildschirm aus |
 |---|---|---|---|---|
-| Rad im Uhrzeigersinn / dagegen | VOLUME_UP / VOLUME_DOWN | runter / hoch | Lautstärke | Lautstärke |
-| Rad-Button | CAMERA | OK, lang: Kontext | Hauptmenü, lang: Kontext | – |
+| Rad im Uhrzeigersinn / dagegen | VOLUME_UP / VOLUME_DOWN | runter / hoch | Lautstärke oder Spulen (Seek-Modus) | Lautstärke |
+| Rad-Button | CAMERA | OK, lang: Kontext | Rad: Lautstärke ↔ Spulen, lang: Hauptmenü | – |
 | oben | MEDIA_PREVIOUS | Zurück, lang: Hauptmenü | Browser, lang: Track zurück | Track zurück |
 | Mitte | MEDIA_PLAY_PAUSE | Play/Pause, lang: Stop | Play/Pause, lang: Stop | Play/Pause, lang: Stop |
 | unten | MEDIA_NEXT | Kontext, lang: Quickscreen | Kontext, lang: Track vor | Track vor |
@@ -212,6 +212,46 @@ liefert trotzdem einen eigenen Keycode, ein System-Remap oder Root ist nicht nö
       die neu gestartete Activity mit.
     Getestet: Neustart des Geräts, Andere Apps → Home, Übersicht, Bildschirm aus 80 s in Pause
     (überlebt), Prozess bei Bildschirm aus beendet (PodBox kommt beim Einschalten wieder).
+27. **Bedienung: Seek per Rad, Rad/Taster entprellt, Lautstärke-Skala (19.11.):**
+    - **Seek:** Im WPS schaltet der Rad-Button (kurz) das Rad zwischen Lautstärke und Spulen um
+      (wie beim iPod), lang öffnet er das Hauptmenü; das Kontextmenü liegt weiter auf "unten".
+      Im Seek-Modus steht "<< SEEK >>" in der Kopfzeile (neues Skin-Token `%mS`). Jede Raste
+      springt 5 s, schnelles Drehen bis 30 s (Abstand der Rasten < 180/130/110 ms → 10/20/30 s).
+      Gesammelt wird, bis das Rad 400 ms ruht, dann wird einmal gesprungen (Anzeige läuft vorher
+      über `ff_rewind_count` mit). Nach 5 s ohne Drehen und bei jeder anderen Taste geht das Rad
+      zurück auf Lautstärke. Code: `HAVE_WHEEL_SEEK` (`config/android.h`), `wps.c`,
+      `ACTION_WPS_WHEELMODE`, `keymap-android.c`. Per adb getestet: 6 Raten = +30 s, Rückkehr
+      nach Timeout.
+    - **Rad-Fehlrichtung:** Eine Raste gegen die bisherige Richtung innerhalb von 250 ms nach der
+      vorigen zählt erst, wenn eine zweite sie bestätigt (dann werden beide gemeldet).
+      Nach einer Pause zählt die erste Raste sofort (`wheel_detent()` in `button-android.c`).
+    - **Doppelte Tastendrücke:** Eine Taste gilt erst als losgelassen, wenn sie 60 ms oben
+      blieb; ein Druck innerhalb dieser Zeit setzt den ersten fort (`button_read_device()`).
+      Gilt für Rad-Button, oben und unten (die Mitte läuft als Media-Taste getrennt).
+    - **Lautstärke in Stufen statt dB:** 0–30 (0 = stumm, `AUDIOHW_SETTING(VOLUME)` in
+      `android_codec.h`, `RockboxPCM.STEPS`). Stufe 1 = leiseste hörbare Android-Stufe
+      (−57 dB), 30 = voll, dazwischen gleich große dB-Schritte (ca. 2 dB). Jede Stufe setzt die
+      nächstliegende Android-Stufe (von 100), keine digitale Zusatzabschwächung mehr. Ändert
+      Android die Lautstärke (Rad bei Bildschirm aus, 1 Android-Stufe pro Raste), übernimmt
+      Rockbox die nächstliegende Stufe. Achtung: Android meldet für Stufe 1 −∞ dB
+      (`getStreamVolumeDb`); das machte die Rechnung zuerst zu NaN und setzte Android beim Start
+      auf 100. Jetzt zählt die leiseste *endliche* Stufe (`streamDbLowest`), die Kurve wird beim
+      Start geloggt. Der Balken ist linear in Stufen (`skin_display.c`, vorher "normalisiert":
+      unten kaum Bewegung, oben Sprünge), das Lautstärke-Symbol rechnet mit 0..30
+      (`skin_tokens.c`). Langsames Drehen (≥ 200 ms pro Raste) = 1 Stufe pro Raste, zügiges
+      beschleunigt mit der Länge der Bewegung: ab Raste 3 je 2 Stufen, ab Raste 6 bei < 130 ms
+      je 3. Die Länge zählt mit, weil der Treiber bei ca. 10 Raten/s deckelt. Die
+      Rasten-Abstände kommen als Button-Daten (`button_queue_post(button, ms)`). Getestet per
+      adb: Android 20 → Stufe 10, je Raste +1 Stufe (Android 25/28/32), zurück 28/25/22.
+    - Fix: Der Druck des Rad-Buttons (ohne Mapping, `ACTION_UNKNOWN`) beendete den Seek-Modus,
+      das Loslassen schaltete ihn wieder ein, verlassen ging nur per Timeout.
+    - Rohdaten (19.11., 183 Raten): Der Rad-Treiber liefert höchstens ca. 10 Raten/s (Abstand nie
+      unter 98 ms, Median 133 ms, p90 209 ms). 5 einzelne Fehlrichtungen, jeweils 100–115 ms nach
+      der vorigen Raste (vom 250-ms-Filter erfasst). Rad-Button: Drücke 115–180 ms, einmal ein
+      kompletter zweiter Druck in derselben ms wie das Loslassen (von der Entprellung erfasst).
+      Rohdaten aufnehmen: `getevent -lt` auf dem Gerät, das Rad ist
+      `odm:rotary@0` (`/dev/input/event2`, KEY_UP/KEY_DOWN), der Rad-Button `mtk-kpd`
+      (`/dev/input/event0`, KEY_CAMERA).
 ## Modernisierung
 
 | Etappe | Stand |
@@ -258,6 +298,48 @@ Start, Menü, Ja/Nein-Dialog, Browser, FLAC-Wiedergabe mit Album-Art. Der alte W
 - Nebenbefund: Das Lua-Spiel `boomshine` brach ab (`backlight_force_on` fehlte in der
   Android-Lua-API). Behoben: `rocklib.c` registriert `backlight_force_on`/`backlight_use_settings`
   immer (ohne `HAVE_BACKLIGHT` als leere Funktionen), boomshine läuft.
+
+## Design (Stand 19.11.)
+
+Neues Theme `podbox` statt cabbiev2: dunkel, flache Karten mit Schatten, keine runden Ecken,
+Akzent sehr helles Grau, Schrift Inter, Symbole Material Symbols Sharp. Entwurf:
+https://claude.ai/artifact/SenArV595xHBfNx5s19Xxk. Ist Standard (`settings_list.c`,
+`PODBOX_THEME`); `config.cfg` auf dem Gerät enthält keine Theme-Zeilen, also greift es direkt.
+
+- **Schriften:** `podbox/mkfonts.sh` (von `build.sh zip` aufgerufen) baut `convttf` und macht aus
+  `podbox/fonts/Inter-*.ttf` kantengeglättete `.fnt` (15–30 px, nicht eingecheckt).
+  `buildzip.pl` und `wpsbuild.pl` kopieren sie. UI-Schrift `30-Inter` (32 px hoch). Der User wollte zweimal größeren Text (20 und 24 px waren zu klein).
+- **Grafiken:** `python podbox/theme/mkassets.py` (Windows-Python mit Pillow/numpy) erzeugt
+  `wps/podbox/*.bmp` und `icons/podbox_icons.32x32.bmp` (eingecheckt). Die Layout-Zahlen stehen
+  dort und in `wps/podbox.480x640x16.{wps,sbs}`, beide zusammen ändern. Material Symbols lädt
+  das Skript beim ersten Lauf nach `podbox/theme/cache` (nicht eingecheckt).
+- **Farbregel:** Alle Flächenfarben sind exakte RGB565-Werte; Verläufe/Schatten dithert das
+  Skript selbst. `backdrop.c` dithert auf Android nicht mehr, sonst wären flache Flächen
+  zweifarbig gemustert und passten nicht zu Flächen, die der Code füllt.
+- **Karten:** Wiedergabe-Karten und Mini-Player sind im Backdrop. Gewählte Listenzeile =
+  Selektor "bar (color)", auf Android als Karte mit Schatten gezeichnet (`STYLE_CARD`,
+  `apps/gui/line.c`). Zeilenhöhe 64 px (`list padding` 32), Icons 32 px, Icon-Abstand 14 px
+  (`ICON_PADDING` in `bitmap/list.c`), schlanke flache Scrollleiste.
+- **Skin-Erweiterung:** `%Vs(fill, Hintergrund[, Text])` füllt Textzeilen einfarbig (für Text auf
+  Bildern, z. B. Lautstärke-Overlay).
+- **Skin-Render:** Bilder eines Viewports werden auf Android nur gezeichnet, wenn der Viewport
+  ganz neu aufgebaut oder eine seiner Zeilen neu geschrieben wurde. Upstream malt sie bei jedem
+  Refresh und übermalte so den Text auf dem Overlay.
+- Hauptmenü-Titel "PodBox" (`root_menu.c`).
+
+Fallstricke beim Skin-Schreiben:
+- `%xd(ab)` mit zwei Zeichen heißt Bild `a`, Teilbild `b`. Teilbilder immer als `%xd(name, n)`,
+  Bildnamen länger als 2 Zeichen.
+- `%Vs(...)` direkt hinter `%Vl(...)` bildet eine eigene leere Zeile (anders als `%Vf`); in die
+  Textzeile schreiben.
+- `%?fc<...>` wählt nach Codec-Nummer, für den Namen `%fc` direkt.
+- Skins ohne Neubau testen: Datei nach `/data/local/tmp` pushen,
+  `run-as com.blueshark.player cp ... app_rockbox/rockbox/wps/podbox.{wps,sbs}`, dann
+  `am force-stop` und Home. Lädt eine Skin nicht, nimmt Rockbox still die eingebaute.
+  `checkwps` bräuchte SDL in WSL.
+
+Offen: Werte in Einstellungslisten (Mockup), Sprache Deutsch, Listentitel bei langen Namen
+(wird abgeschnitten), Viewer-Icons noch Tango.
 
 ## Wärme und Audio-Hardware (Stand 17.11.)
 

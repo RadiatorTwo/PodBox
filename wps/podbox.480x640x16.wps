@@ -1,0 +1,93 @@
+# PodBox - while playing screen, 480x640 (Surfans F20 Pro+)
+# Dark, flat cards with shadows, Inter. Cards and shadows are baked into
+# the backdrop (podbox/theme/mkassets.py, which holds the same layout
+# numbers). No %s (scrolling): long texts are cut off.
+%wd
+%X(wps-backdrop.bmp)
+
+%Fl(2,36-Inter-Bold.fnt)
+%Fl(3,28-Inter-Medium.fnt)
+%Fl(4,24-Inter.fnt)
+%Fl(5,22-Inter-SemiBold.fnt)
+%Fl(6,44-Inter-Bold.fnt)
+%Fl(7,28-Inter-SemiBold.fnt)
+
+%xl(none,cover-none.bmp,0,0)
+%xl(pbtrack,pb-track.bmp,0,0)
+%xl(playmode,st-playmode.bmp,0,0,3)
+%xl(shuf,st-shuffle.bmp,0,0)
+%xl(repeat,st-repeat.bmp,0,0,3)
+%xl(battery,st-battery.bmp,0,0,11)
+%xl(vcard,vol-card.bmp,0,0)
+%xl(vicon,vol-icon.bmp,0,0)
+%xl(voltrack,vol-track.bmp,0,0)
+
+%Cl(0,0,256,256,c,c)
+
+%?C<%Vd(art)|%Vd(noart)>
+# volume overlay for 2 s after the volume changed (wheel)
+%?mv(2.0)<%Vd(v)|%Vd(p)>
+
+#
+# status bar
+#
+%V(16,7,20,20,-)
+%?mp<%xd(playmode,3)|%xd(playmode,1)|%xd(playmode,2)|%xd(playmode,1)|%xd(playmode,1)|%xd(playmode,3)|%xd(playmode,3)|%xd(playmode,3)|%xd(playmode,3)>
+%V(42,7,20,20,-)
+%?ps<%xd(shuf)|>
+%V(66,7,20,20,-)
+%?mm<|%xd(repeat,1)|%xd(repeat,2)|%xd(repeat,3)|%xd(repeat,1)>
+%V(140,5,200,23,5)
+%ac%?mS<SPULEN|%?cc<%?ca<%?St(time format)<%cH|%cI>:%cM|>|>>
+%V(316,5,114,23,5)%Vf(A8ACB0)
+%ar%bl %%
+%V(436,8,28,16,-)
+%?bl<%xd(battery,1)|%xd(battery,1)|%xd(battery,2)|%xd(battery,3)|%xd(battery,4)|%xd(battery,5)|%xd(battery,6)|%xd(battery,7)|%xd(battery,8)|%xd(battery,9)|%xd(battery,10)|%xd(battery,11)>
+
+#
+# cover
+#
+%Vl(art,112,46,256,256,-)
+%Cd
+%Vl(noart,112,46,256,256,-)
+%xd(none)
+
+#
+# title, artist, album
+#
+%V(24,314,432,38,2)
+%ac%?it<%it|%fn>
+%V(24,354,432,29,3)%Vf(A8ACB0)
+%ac%?ia<%ia|%?iA<%iA|%?d(2)<%d(2)|>>>
+%V(24,386,432,25,4)%Vf(84888E)
+%ac%?id<%id|%?d(1)<%d(1)|>>%?iy< · %iy|>
+
+#
+# progress card, next track
+#
+%Vl(p,44,446,392,6,-)
+%pb(0,0,392,6,pb-fill.bmp,backdrop,pbtrack)
+%Vl(p,44,463,392,23,5)%Vf(A8ACB0)
+%al%pc%ac%fc · %fk kHz%ar-%pr
+%Vl(p,24,528,310,23,5)%Vf(84888E)
+ALS NÄCHSTES
+%Vl(p,24,553,310,25,4)%Vf(A8ACB0)
+%?It<%It|%Fn>%?Ia< – %Ia|>
+%Vl(p,344,540,112,23,5)%Vf(A8ACB0)
+%ac%pp / %pe
+
+#
+# volume overlay (an opaque image over the lower part)
+#
+%Vl(v,0,418,480,222,-)
+%xd(vcard)
+%Vl(v,44,452,40,40,-)
+%xd(vicon)
+%Vl(v,94,458,200,29,7)
+%Vs(fill,2A2E33,E8ECF0)Lautstärke
+%Vl(v,250,450,136,45,6)
+%Vs(fill,2A2E33,E8ECF0)%ar%pv
+%Vl(v,390,462,50,25,4)
+%Vs(fill,2A2E33,84888E)%al / 30
+%Vl(v,44,534,392,14,-)
+%pv(0,0,392,14,vol-fill.bmp,backdrop,voltrack)

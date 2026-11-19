@@ -186,6 +186,11 @@ sub copythemefont
 
     $o =~ s/\.fnt/\.bdf/;
     mkdir "$tempdir/fonts";
+    # PodBox: anti-aliased TTF fonts are made by podbox/mkfonts.sh
+    if (-f "$ROOT/podbox/fonts/$_[0]") {
+        system("cp \"$ROOT/podbox/fonts/$_[0]\" \"$tempdir/fonts/$_[0]\"");
+        return;
+    }
     system("$ROOT/tools/convbdf -f -o \"$tempdir/fonts/$_[0]\" \"$ROOT/fonts/$o\" ");
 }
 

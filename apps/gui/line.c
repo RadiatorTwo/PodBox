@@ -292,6 +292,79 @@ next:
     }
 }
 
+#ifdef HAVE_LCD_COLOR
+/* PodBox: colour a over b, alpha in 1/256 */
+static unsigned blend_native(unsigned a, unsigned b, int alpha)
+{
+    int r = (RGB_UNPACK_RED(a) * alpha + RGB_UNPACK_RED(b) * (256 - alpha)) >> 8;
+    int g = (RGB_UNPACK_GREEN(a) * alpha + RGB_UNPACK_GREEN(b) * (256 - alpha)) >> 8;
+    int bl = (RGB_UNPACK_BLUE(a) * alpha + RGB_UNPACK_BLUE(b) * (256 - alpha)) >> 8;
+    return LCD_RGBPACK(r, g, bl);
+}
+
+/* PodBox: horizontal span [x0, x1) clipped to [clip, width) */
+static void card_hline(struct screen *display, int clip, int width,
+                       int x0, int x1, int y, unsigned colour)
+{
+    if (x0 < clip)
+        x0 = clip;
+    if (x1 > width)
+        x1 = width;
+    if (x1 <= x0)
+        return;
+    display->set_foreground(colour);
+    display->fillrect(x0, y, x1 - x0, 1);
+}
+
+/* PodBox: the selected list line as a raised card. The whole line rect is
+ * drawn (from x 0), clipped to [clip_x, width) so the scroller can redraw
+ * only the text part. Background must be a flat colour (theme rule). */
+static void draw_card(struct screen *display, int clip_x, int y,
+                      int width, int height, unsigned fill)
+{
+    /* shadow below the card, top to bottom (alpha/256 of black) */
+    static const unsigned char below[] = { 120, 80, 52, 32, 18, 8 };
+    const unsigned bg = global_settings.bg_color;
+    const unsigned black = LCD_RGBPACK(0, 0, 0);
+    const int margin = 3;                 /* left/right, room for the edge */
+    const int top = 2;
+    const int bottom = 7;                 /* room for the shadow */
+    int x0 = margin, x1 = width - margin;
+    int cy0 = y + top, cy1 = y + height - bottom;
+    int i;
+
+    if (cy1 - cy0 < 4)
+    {
+        cy0 = y;
+        cy1 = y + height;
+    }
+    display->set_drawmode(DRMODE_SOLID);
+    /* clear the line to the background */
+    display->set_foreground(bg);
+    display->fillrect(clip_x, y, width - clip_x, height);
+    /* ambient edge above and at the sides */
+    card_hline(display, clip_x, width, x0, x1, cy0 - 1, blend_native(black, bg, 28));
+    for (i = cy0; i < cy1; i++)
+    {
+        card_hline(display, clip_x, width, x0 - 2, x0 - 1, i, blend_native(black, bg, 20));
+        card_hline(display, clip_x, width, x0 - 1, x0, i, blend_native(black, bg, 48));
+        card_hline(display, clip_x, width, x1, x1 + 1, i, blend_native(black, bg, 48));
+        card_hline(display, clip_x, width, x1 + 1, x1 + 2, i, blend_native(black, bg, 20));
+    }
+    /* key shadow, slightly inset as it fades */
+    for (i = 0; i < (int)sizeof(below) && cy1 + i < y + height; i++)
+        card_hline(display, clip_x, width, x0 - 1 + i / 2, x1 + 1 - i / 2, cy1 + i,
+                   blend_native(black, bg, below[i]));
+    /* the card */
+    if (clip_x < x1)
+    {
+        int cx = MAX(x0, clip_x);
+        display->set_foreground(fill);
+        display->fillrect(cx, cy0, x1 - cx, cy1 - cy0);
+    }
+}
+#endif
+
 static void style_line(struct screen *display,
                        int x, int y, struct line_desc *line)
 {
@@ -345,6 +418,11 @@ static void style_line(struct screen *display,
                                             height*line->line);
             break;
         case STYLE_COLORBAR:
+            if (style & STYLE_CARD)
+            {
+                draw_card(display, x, y, width, height, line->line_color);
+                break;
+            }
             /*display->set_drawmode(DRMODE_FG);*/
             display->set_foreground(line->line_color);
             /*display->fillrect(x, y, width - x, bar_height);*/

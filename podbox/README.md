@@ -28,8 +28,8 @@ ein System-Remap ist nicht nötig.
 
 | Taste | Listen/Menüs | Wiedergabe-Bildschirm (WPS) |
 |---|---|---|
-| Rad | hoch/runter | Lautstärke |
-| Rad-Button | OK, lang: Kontextmenü | Hauptmenü, lang: Kontextmenü |
+| Rad | hoch/runter | Lautstärke, im Seek-Modus Spulen (5 s pro Raste, schnell bis 30 s) |
+| Rad-Button | OK, lang: Kontextmenü | Rad umschalten Lautstärke ↔ Seek, lang: Hauptmenü |
 | oben | Zurück, lang: Hauptmenü | Browser, lang: Track zurück |
 | Mitte | Play/Pause, lang (≥0,6 s): Stop | Play/Pause, lang: Stop |
 | unten | Kontextmenü, lang: Quickscreen | Kontextmenü, lang: Track vor |
@@ -107,6 +107,11 @@ In den Einstellungen ändert das Rad den Wert.
   (`useLegacyPackaging`, weil Rockbox die Libs aus `nativeLibraryDir` liest). `package`,
   Version und `uses-sdk` stehen nicht mehr im Manifest; `android.make` setzt sie für den alten
   Weg (`PODBOX_APK=make`) per sed wieder ein.
+- Theme `podbox` (Standard): `wps/podbox.480x640x16.{wps,sbs}`, Grafiken aus
+  `podbox/theme/mkassets.py`, Inter-Schriften aus `podbox/mkfonts.sh`. Code dazu: Listen-Karte
+  (`STYLE_CARD` in `apps/gui/line.c`, `bitmap/list.c`), `%Vs(fill, …)`
+  (`skin_parser.c`, `tag_table.c`), Backdrops ohne Dithering (`backdrop.c`), Skin-Bilder nur bei
+  Bedarf neu zeichnen (`skin_render.c`). Details in STATUS.md, Abschnitt Design.
 
 ## Build
 

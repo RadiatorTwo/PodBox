@@ -390,6 +390,10 @@ sub buildzip {
         print($cmd."\n") if $verbose;
         system($cmd);
         copy("$ROOT/fonts/COPYING", "COPYING-fonts.txt");
+        # PodBox: anti-aliased Inter fonts made by podbox/mkfonts.sh
+        glob_copy("$ROOT/podbox/fonts/*.fnt", ".");
+        copy("$ROOT/podbox/fonts/Inter-LICENSE.txt", "LICENSE-Inter.txt")
+            if -f "$ROOT/podbox/fonts/Inter-LICENSE.txt";
         chdir("../../");
 
         if($fonts < 2) {

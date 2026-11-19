@@ -305,3 +305,33 @@ ui viewport: -
 </remote>
 
 </theme>
+
+<theme>
+Name: podbox
+Authors: PodBox (dark, flat cards with shadows, Inter font, Material Symbols icons)
+WPS: yes
+SBS: yes
+
+<main>
+# PodBox (Surfans F20 Pro+) only: 480x640
+wps.480x640x(16|24|32):  podbox.480x640x16.wps
+sbs.480x640x(16|24|32):  podbox.480x640x16.sbs
+Font.480x640x(16|24|32): 30-Inter.fnt
+iconset.480x640x(16|24|32): icons/podbox_icons.32x32.bmp
+viewers iconset.480x640x(16|24|32): icons/tango_icons_viewers.32x32.bmp
+backdrop: -
+foreground color: E8ECF0
+background color: 181C20
+selector type: bar (color)
+line selector start color: 2A2E33
+line selector end color: 2A2E33
+line selector text color: E8ECF0
+filetype colours: -
+show icons: on
+statusbar: top
+ui viewport: -
+list separator height: 0
+list separator color: 181C20
+</main>
+
+</theme>

@@ -764,6 +764,9 @@ void skin_render_viewport(struct skin_element* viewport, struct gui_wps *gwps,
 
     struct align_pos * align = &info.align;
     bool needs_update, update_all = false;
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+    bool wrote_line = false;
+#endif
     skin_buffer = get_skin_buffer(gwps->data);
     /* Set images to not to be displayed */
     struct skin_token_list *imglist = SKINOFFSETTOPTR(skin_buffer, gwps->data->images);
@@ -833,11 +836,21 @@ void skin_render_viewport(struct skin_element* viewport, struct gui_wps *gwps,
             }
             write_line(display, align, info.line_number,
                     info.line_scrolls, &info.line_desc);
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+            wrote_line = true;
+#endif
         }
         if (!info.no_line_break)
             info.line_number++;
         line = SKINOFFSETTOPTR(skin_buffer, line->next);
     }
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+    /* PodBox: images only need drawing when the viewport was cleared or a
+     * line of it was redrawn. Upstream draws them on every refresh, which
+     * paints an image viewport over text viewports placed on top of it
+     * (volume overlay card) and costs time. */
+    if ((refresh_type & SKIN_REFRESH_ALL) == SKIN_REFRESH_ALL || wrote_line)
+#endif
     wps_display_images(gwps, &skin_viewport->vp);
 }
 

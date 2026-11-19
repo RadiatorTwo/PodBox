@@ -614,7 +614,7 @@ static int parse_viewporttextstyle(struct skin_element *element,
     unsigned colour;
 
     static const char * const vp_options[] = { "invert", "color", "colour",
-                                 "clear", "gradient", NULL};
+                                 "clear", "gradient", "fill", NULL};
 
     int vp_op = string_option(mode, vp_options, false);
 
@@ -649,6 +649,22 @@ static int parse_viewporttextstyle(struct skin_element *element,
     {
         line->style = STYLE_DEFAULT;
     }
+#ifdef HAVE_LCD_COLOR
+    else if (vp_op == 5) /*fill: %Vs(fill, background[, text colour])*/
+    {
+        /* PodBox: fill the line with a solid colour instead of the
+         * backdrop, so text can sit on cards drawn as images */
+        if (element->params_count < 2 ||
+            !parse_color(curr_screen, get_param_text(element, 1), &colour))
+            return 1;
+        line->style = STYLE_COLORBAR;
+        line->line_color = colour;
+        line->text_color = curr_vp->vp.fg_pattern;
+        if (element->params_count > 2 &&
+            parse_color(curr_screen, get_param_text(element, 2), &colour))
+            line->text_color = colour;
+    }
+#endif
     else
         return 1;
 

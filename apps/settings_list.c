@@ -345,12 +345,15 @@ static const int backlight_fade[] = {0,100,200,300,500,1000,2000,3000,5000,10000
 static const char graphic_numeric[] = "graphic,numeric";
 
 /* Default theme settings */
-#define DEFAULT_WPSNAME  "cabbiev2"
 #if (CONFIG_PLATFORM & PLATFORM_ANDROID) && LCD_WIDTH == 480 && LCD_HEIGHT == 640
-/* PodBox: large statusbar (cabbiev2.480x640x16.sbs), the built-in one is
- * only 8 px high */
-#define DEFAULT_SBSNAME  "cabbiev2"
+#define PODBOX_THEME
+#endif
+#ifdef PODBOX_THEME
+/* PodBox: own theme (wps/podbox.480x640x16.*, podbox/theme) */
+#define DEFAULT_WPSNAME  "podbox"
+#define DEFAULT_SBSNAME  "podbox"
 #else
+#define DEFAULT_WPSNAME  "cabbiev2"
 #define DEFAULT_SBSNAME  "-"
 #endif
 #define DEFAULT_FMS_NAME "cabbiev2"
@@ -377,9 +380,10 @@ static const char graphic_numeric[] = "graphic,numeric";
   #define DEFAULT_FONT_HEIGHT 18
 #elif LCD_HEIGHT <= 400
   #define DEFAULT_FONT_HEIGHT 16
-#elif (CONFIG_PLATFORM & PLATFORM_ANDROID) && LCD_WIDTH == 480 && LCD_HEIGHT == 640
-  /* PodBox (Surfans F20 Pro+), matches cabbiev2.480x640 theme */
-  #define DEFAULT_FONT_HEIGHT 35
+#elif defined(PODBOX_THEME)
+  /* PodBox: anti-aliased Inter, made by podbox/mkfonts.sh */
+  #define DEFAULT_FONT_HEIGHT 32
+  #define DEFAULT_FONTNAME "30-Inter"
 #elif LCD_HEIGHT <= 480 && LCD_WIDTH < 800
   #define DEFAULT_FONT_HEIGHT 27
 #else
@@ -397,7 +401,10 @@ static const char graphic_numeric[] = "graphic,numeric";
 #endif
 
 #ifdef HAVE_LCD_COLOR
-  #if DEFAULT_FONT_HEIGHT >= 31 || defined(SHANLING_Q1)
+  #if defined(PODBOX_THEME)
+    #define DEFAULT_ICONSET "podbox_icons.32x32"
+    #define DEFAULT_VIEWERS_ICONSET "tango_icons_viewers.32x32"
+  #elif DEFAULT_FONT_HEIGHT >= 31 || defined(SHANLING_Q1)
     #define DEFAULT_ICONSET "tango_icons.32x32"
     #define DEFAULT_VIEWERS_ICONSET "tango_icons_viewers.32x32"
   #elif DEFAULT_FONT_HEIGHT >= 23
@@ -433,6 +440,16 @@ static const char graphic_numeric[] = "graphic,numeric";
 #endif
 #endif /* HAVE_REMOTE_LCD */
 
+#ifdef PODBOX_THEME
+/* PodBox: colours of podbox/theme/mkassets.py (exact RGB565 values) */
+#define DEFAULT_THEME_FOREGROUND LCD_RGBPACK(0xe8, 0xec, 0xf0)
+#define DEFAULT_THEME_BACKGROUND LCD_RGBPACK(0x18, 0x1c, 0x20)
+#define DEFAULT_THEME_SELECTOR_START LCD_RGBPACK(0x2a, 0x2e, 0x33)
+#define DEFAULT_THEME_SELECTOR_END LCD_RGBPACK(0x2a, 0x2e, 0x33)
+#define DEFAULT_THEME_SELECTOR_TEXT LCD_RGBPACK(0xe8, 0xec, 0xf0)
+#define DEFAULT_THEME_SEPARATOR  LCD_RGBPACK(0x18, 0x1c, 0x20)
+#define DEFAULT_BACKDROP    "-"
+#else
 #define DEFAULT_THEME_FOREGROUND LCD_RGBPACK(0xce, 0xcf, 0xce)
 #define DEFAULT_THEME_BACKGROUND LCD_RGBPACK(0x00, 0x00, 0x00)
 #define DEFAULT_THEME_SELECTOR_START LCD_RGBPACK(0xff, 0xeb, 0x9c)
@@ -441,6 +458,7 @@ static const char graphic_numeric[] = "graphic,numeric";
 #define DEFAULT_THEME_SEPARATOR  LCD_RGBPACK(0x80, 0x80, 0x80)
 
 #define DEFAULT_BACKDROP    BACKDROP_DIR "/cabbiev2.bmp"
+#endif
 
 #ifdef HAVE_RECORDING
 /* these should be in the config.h files */
@@ -1342,7 +1360,11 @@ const struct settings_list settings[] = {
     /* display */
      CHOICE_SETTING(F_TEMPVAR|F_THEMESETTING, cursor_style, LANG_INVERT_CURSOR,
  #ifdef HAVE_LCD_COLOR
+#ifdef PODBOX_THEME
+                    2, "selector type", /* bar (color) = card, see line.c */
+#else
                     3, "selector type",
+#endif
                     "pointer,bar (inverse),bar (color),bar (gradient)", NULL, 4,
                     ID2P(LANG_INVERT_CURSOR_POINTER),
                     ID2P(LANG_INVERT_CURSOR_BAR),
@@ -1372,9 +1394,9 @@ const struct settings_list settings[] = {
 #ifdef HAVE_TOUCHSCREEN
     TABLE_SETTING(F_THEMESETTING|F_ALLOW_ARBITRARY_VALS, list_line_padding, LANG_LIST_LINE_PADDING,
 #if (CONFIG_PLATFORM & PLATFORM_ANDROID)
-                  /* PodBox: operated by hardware keys, no need for
-                   * finger-sized list lines */
-                  6,
+                  /* PodBox: list lines of 64 px for the card selector
+                   * (30-Inter is 32 px high), 7 lines in the list area */
+                  32,
 #else
                   -1,
 #endif

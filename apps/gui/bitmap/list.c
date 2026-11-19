@@ -43,8 +43,14 @@
 #include "line.h"
 #include "fixedpoint.h"
 
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+/* PodBox: room around list icons (card selector, see gui/line.c) */
+#define ICON_PADDING 14
+#define ICON_PADDING_S "14"
+#else
 #define ICON_PADDING 1
 #define ICON_PADDING_S "1"
+#endif
 
 #ifdef HAVE_TOUCHSCREEN
 /* used in gui_synclist->scroll_mode */
@@ -303,9 +309,32 @@ void list_draw(struct screen *display, struct gui_synclist *list)
             int scrollbar_min = list->y_pos;
             int scrollbar_max = list->y_pos + list_text_vp->height;
 #endif
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID) && defined(HAVE_LCD_COLOR)
+            /* PodBox: slim flat scrollbar, a lighter thumb on a dark track */
+            {
+                const int bw = 4, len = vp.height - 8;
+                const int bx = scrollbar_in_left ? 0 : SCROLLBAR_WIDTH - bw;
+                int size = len * (scrollbar_max - scrollbar_min) / MAX(scrollbar_items, 1);
+                int start = len * scrollbar_min / MAX(scrollbar_items, 1);
+                if (size < 24)
+                {
+                    start = start * (len - 24) / MAX(len - size, 1);
+                    size = 24;
+                }
+                if (start + size > len)
+                    start = len - size;
+                display->set_drawmode(DRMODE_SOLID);
+                display->set_foreground(LCD_RGBPACK(0x3a, 0x3e, 0x44));
+                display->fillrect(bx, 4, bw, len);
+                display->set_foreground(LCD_RGBPACK(0xa8, 0xac, 0xb0));
+                display->fillrect(bx, 4 + start, bw, size);
+                display->set_foreground(global_settings.fg_color);
+            }
+#else
             gui_scrollbar_draw(display,
                     (scrollbar_in_left? 0: 1), 0, SCROLLBAR_WIDTH-1, vp.height,
                     scrollbar_items, scrollbar_min, scrollbar_max, VERTICAL);
+#endif
             display->set_viewport(last);
         }
         /* shift everything a bit in relation to the title */
@@ -402,6 +431,10 @@ void list_draw(struct screen *display, struct gui_synclist *list)
             {
                 /* Display colour line selector */
                 style = STYLE_COLORBAR;
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+                /* PodBox: "bar (color)" is drawn as a raised card */
+                style |= STYLE_CARD;
+#endif
                 linedes.text_color = global_settings.lst_color;
                 linedes.line_color = global_settings.lss_color;
             }
